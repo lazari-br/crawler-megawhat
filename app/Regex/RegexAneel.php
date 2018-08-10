@@ -110,7 +110,6 @@ class RegexAneel extends AbstractRegex
         return str_replace(" ", "+", $dado);
     }
 
-    // Pegar audiência
     public function capturaAudiencia($page_acesso)
     {
         $regex = '/href..(.*)"\>/';
@@ -143,7 +142,7 @@ class RegexAneel extends AbstractRegex
     public function getDataExpansao($page_acesso)
     {
         $regex = '/\>Pequenas Centrais Hidrelétricas...([^>]+)+</';
-        return $this->regexFirst($regex, $page_acesso, 0, 'Data');
+        return preg_replace('/\&nbsp;/', ' ', $this->regexFirst($regex, $page_acesso, 0, 'Data'));
     }
 
     public function getPequenasCentrais($page_acesso)
@@ -279,24 +278,23 @@ class RegexAneel extends AbstractRegex
         $conteudo = $this->regexAll($regex, $page_acesso, 0, ['Proprietário']);
 
         $array = [];
-        foreach ($conteudo as $key => $item)
+        if ($conteudo)
         {
-            foreach ($item as $chave => $prop)
-            {
-                if ($prop)
-                {
-                    $isola = explode('),', $prop);
+            foreach ($conteudo as $key => $item) {
+                foreach ($item as $chave => $prop) {
+                    if ($prop) {
+                        $isola = explode('),', $prop);
 
-                    foreach ($isola as $keys => $value) {
-                        $indice = ['Nome da empresa', 'CPNJ'];
-//echo '<pre>', var_dump(explode('(', preg_replace('/\)/', '', trim($value))));
-dd(explode('(', preg_replace('/\)/', '', trim($value))));
-                        $array[$key]['Proprietário'][$keys] = array_combine($indice, explode('(', preg_replace('/\)/', '', trim($value))));
+                        foreach ($isola as $keys => $value)
+                        {
+                            $array[$key]['Proprietário']['Nome da empresa'] = $this->regexFirst('/(.*?)\(/', $value, 0, 'Nome da empresa');
+                            $array[$key]['Proprietário']['CNPJ'] = preg_replace('/(\))/', '', $this->regexFirst('/\((.*)/', $value, 0, 'CNPJ'));
+                        }
+
+                    } else {
+                        $array[$key]['Proprietário'] = ['Nome da empresa' => '',
+                            'CNPJ' => ''];
                     }
-
-                } else {
-                    $array[$key]['Proprietário'] = ['Nome da empresa' => '',
-                                                    'CNPJ' => ''];
                 }
             }
         }
@@ -310,22 +308,23 @@ dd(explode('(', preg_replace('/\)/', '', trim($value))));
         $conteudo = $this->regexAll($regex, $page_acesso, 0, ['Município']);
 
         $array = [];
-        foreach ($conteudo as $key => $item)
+        if ($conteudo)
         {
-            foreach ($item as $chave => $prop)
-            {
-                if ($prop)
-                {
-                    $isola = explode('),', $prop);
+            foreach ($conteudo as $key => $item) {
+                foreach ($item as $chave => $prop) {
+                    if ($prop) {
+                        $isola = explode('),', $prop);
 
-                    foreach ($isola as $keys => $value) {
-                        $indice = ['Cidade', 'Estado'];
+                        foreach ($isola as $keys => $value)
+                        {
+                            $array[$key]['Município']['Cidade'] = $this->regexFirst('/(.*?)\(/', $value, 0, 'Cidade');
+                            $array[$key]['Município']['Estado'] = preg_replace('/(\))/', '', $this->regexFirst('/\((.*)/', $value, 0, 'Estado'));
+                        }
 
-                        $array[$key]['Município'][$keys] = array_combine($indice, explode('(', preg_replace('/\)/', '', trim($value))));
+                    } else {
+                        $array[$key]['Município'] = ['Cidade' => '',
+                            'Estado' => ''];
                     }
-                } else {
-                    $array[$key]['Município'] = ['Cidade' => '',
-                                                 'Estado' => ''];
                 }
             }
         }

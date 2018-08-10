@@ -12,16 +12,30 @@ use Carbon\Carbon;
 use function GuzzleHttp\Promise\all;
 use Maatwebsite\Excel\Excel;
 use function PhpParser\filesInDir;
+use Crawler\Util\Util;
+use Crawler\Util\UtilCcee;
+use function Psy\sh;
+use Crawler\Regex\RegexCcee;
+
 
 class ImportExcelCcee
 {
     private $excel;
     private $startRow;
+    private $util;
+    private $utilCcee;
+    private $regexCcee;
 
 
-    public function __construct(Excel $excel)
+    public function __construct(Excel $excel,
+                                RegexCcee $regexCcee,
+                                UtilCcee $utilCcee,
+                                Util $util)
     {
         $this->excel = $excel;
+        $this->util = $util;
+        $this->utilCcee = $utilCcee;
+        $this->regexCcee = $regexCcee;
 
     }
 
@@ -1757,18 +1771,14 @@ class ImportExcelCcee
 
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $this->setConfigStartRow(15);
 
-        $receb = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(20)
-                    ->skipRows(5);
-            })
-            ->first()
-            ->toArray();
+        $receb = $this->util->import(15, $sheet, $file, 20);
 
-        $rowData = array_slice($receb, 2);
-
+        foreach ($receb as $key => $linha) {
+            if ($linha['componente'] === 'Total') {
+                $rowData = array_slice($linha, 2);
+            }
+        }
         array_walk($rowData, function ($value, $key) use (&$arrData) {
             $total = $value;
             if (!is_null($value)) {
@@ -1776,7 +1786,6 @@ class ImportExcelCcee
             }
             $arrData[$key] = $total;
         });
-
         $data = array_combine($months, $arrData);
 
         return $data;
@@ -1804,29 +1813,18 @@ class ImportExcelCcee
             'Dezembro' => 31
         ];
 
-        $this->setConfigStartRow(15);
+        $receb = $this->util->import(15, $sheet, $file, 20);
 
-        $receb = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(20)
-                    ->skipRows(5);
-            })
-            ->first()
-            ->toArray();
+        foreach ($receb as $key => $linha) {
+            if ($linha['componente'] === 'Total') {
+                $dataReceb = array_slice($receb[0], 2);
+            }
+        }
 
-        $dataReceb = array_slice($receb, 2);
-
-        $this->setConfigStartRow(451);
-
-        $cons =  \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(527)
-                    ->skipRows(76);
-            })
-            ->first()
-            ->toArray();
-
-        $rowDataCons = array_slice($cons, 4);
+        $cons = $this->util->import(527, $sheet, $file, 527);
+        $rowCons = array_slice($cons[0], 2);
+        $complemento = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
+        $rowDataCons = array_slice(array_merge($rowCons, $complemento), 0, 12);
 
         $dataMWh = array_map(function($x, $y){
             if (!is_null($x) && !is_null($y)) {
@@ -1842,9 +1840,7 @@ class ImportExcelCcee
             }};
 
         $dataCons = array_map($func, $dataMWh);
-
         $rowData = array_map(function($x, $y){return number_format(($x*$y), 15, ",", ".");},$dataCons, $dataReceb);
-
         $data = array_combine($months, $rowData);
 
         return $data;
@@ -1858,16 +1854,8 @@ class ImportExcelCcee
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-        $this->setConfigStartRow(162);
-
-        $valor = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(162);
-            })
-            ->first()
-            ->toArray();
-
-        $rowData = array_slice($valor, 2);
+        $valor = $this->util->import(162, $sheet, $file, 162, 0);
+        $rowData = array_slice($valor[0], 2);
 
         array_walk($rowData, function ($value, $key) use (&$arrData) {
             $total = $value;
@@ -1904,24 +1892,10 @@ class ImportExcelCcee
             'Dezembro' => 31
         ];
 
-        $this->setConfigStartRow(162);
-        $custo = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(162);
-            })
-            ->first()
-            ->toArray();
-
+        $custo = $this->util->import(162, $sheet, $file, 162, 0);
         $dataCusto = array_slice($custo, 2);
 
-        $this->setConfigStartRow(172);
-        $energ = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(172);
-            })
-            ->first()
-            ->toArray();
-
+        $energ = $this->util->import(172, $sheet, $file, 172, 0);
         $rowDataEnerg = array_slice($energ, 2);
 
         $dataMWh = array_map(function($x, $y){
@@ -1933,7 +1907,6 @@ class ImportExcelCcee
 
         $func = function ($n){
             if (!is_null($n)) {
-
                 return (1 / $n);
             }};
 
@@ -1942,8 +1915,7 @@ class ImportExcelCcee
         $rowData = array_map(function($x, $y){
             return number_format(($x*$y), 15, ",", ".");
         },
-            $dataCusto, $dataEnerg);
-
+        $dataCusto, $dataEnerg);
         $data = array_combine($months, $rowData);
 
         return $data;
@@ -1953,25 +1925,25 @@ class ImportExcelCcee
     public function cceeUsinas($file, $sheet)
     {
         $indice = ['Código do Ativo',
-            'Sigla do Ativo',
-            'CEG do empreendimento',
-            'Código da parcela da Usina',
-            'Parcela de Usina',
-            'Tipo de Despacho',
-            'Participante do Rateio de Perdas',
-            'Fonte de Energia Primária',
-            'Submercado',
-            'UF',
-            'Característica  da Parcela',
-            'Participante do MRE',
-            'Participante do Regima de Cotas',
-            '% de Desconto',
-            'Capacidade da USina(i) - MW (CAP_T)',
-            'Garantia Física (ii) MW médio (GF)',
-            'Fator de Operação Comercial (iv) (F_COMERCIALp,j)',
-            'Código Perfil',
-            'Sigla' ,
-            'Nome Empresarial'];
+                   'Sigla do Ativo',
+                   'CEG do empreendimento',
+                   'Código da parcela da Usina',
+                   'Parcela de Usina',
+                   'Tipo de Despacho',
+                   'Participante do Rateio de Perdas',
+                   'Fonte de Energia Primária',
+                   'Submercado',
+                   'UF',
+                   'Característica da Parcela',
+                   'Participante do MRE',
+                   'Participante do Regima de Cotas',
+                   '% de Desconto',
+                   'Capacidade da Usina (i) - MW (CAP_T)',
+                   'Garantia Física (ii) MW médio (GF)',
+                   'Fator de Operação Comercial (iv) (F_COMERCIALp,j)',
+                   'Código Perfil',
+                   'Sigla' ,
+                   'Nome Empresarial'];
 
         $meses = ['Janeiro',
                   'Fevereiro',
@@ -1986,54 +1958,133 @@ class ImportExcelCcee
                   'Novembro',
                   'Dezembro'];
 
-        $this->setConfigStartRow(23);
-        $findStart = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(9999999);
-            })
-            ->get()
-            ->toArray();
+        $patamar = ['Leve', 'Médio', 'Pesado'];
 
-        $i = 0;
-        foreach ($findStart as $key=> $linha)
+        $data = [];
+        $data212 = [];
+        $fim = 0;
+        $rowData = array_slice($this->util->import(23, $sheet, $file, 9999, 0), 1);
+        foreach ($rowData as $key => $item)
         {
-            if ($linha['codigo_do_ativo'] === 'Tabela 003 - Informações de garantia física, capacidade e geração das usinas por mês')
-            {
-                $this->setConfigStartRow($i+25);
-                $rowDataUsina = \Excel::selectSheetsByIndex($sheet)
-                    ->load($file, function ($reader){
-                        $reader->limitRows(9999999);
-                    })
-                    ->get()
-                    ->toArray();
+            if ($rowData[$key]['patamar'] === null){
+                $fim = $key;
+                break;
+            }
+            $data[$key] = array_combine($indice, array_slice($item, 1, 20));
 
-                foreach ($rowDataUsina as $key=>$value)
-                {
-                    $dataUsina[] = array_combine($indice, $a = array_slice($value, 1, 20));
-
-                    $this->setConfigStartRow($i+26);
-                    $rowDataGeracao = \Excel::selectSheetsByIndex($sheet)
-                        ->load($file, function ($reader){
-                            $reader->limitRows(9999999);
-                        })
-                        ->get()
-                        ->toArray();
-
-                    foreach ($rowDataGeracao as $key=>$value)
-                    {
-                        $dataUsina[$key]['Geração no centro de gravidade (v) - MWh (Gp,j)'] = array_combine($meses, array_slice($value, 1, 20));
-                    }
-                }
-
-                $data = array_slice($dataUsina, 1);
-
-dd($data);
-            } else
-                {
-                    $i++;
-                }
+            if ($data[$key]['Código da parcela da Usina'] === null) {
+                unset ($data[$key]);
+            }
+            if (fmod($key, 3) === 0.0) {
+                $data = $this->util->celulaMesclada($data, 'Código do Ativo', 3);
+                $data = $this->util->celulaMesclada($data, 'Sigla do Ativo', 3);
+                $data = $this->util->celulaMesclada($data, 'CEG do empreendimento', 3);
+            }
         }
 
+        $rowDataGeracao = $this->util->import(24, $sheet, $file, (24 + $fim) - 1, 0);
+        foreach ($rowDataGeracao as $keys => $conteudo) {
+            $dataGeracao[$keys] = array_combine($meses, array_slice($conteudo, 1, 12));
+        }
+        foreach ($data as $chave => $info)
+        {
+            $data[$chave]['Geração no centro de gravidade (v) por Patamar - MWh (Gp,j)'] = array_combine($patamar, [$dataGeracao[$chave + 0],
+                                                                                                                    $dataGeracao[$chave + 1],
+                                                                                                                    $dataGeracao[$chave + 2]]);
+            if ($data[$chave]['Código do Ativo'] === 244.0 ||
+                $data[$chave]['Código do Ativo'] === 331.0 ||
+                $data[$chave]['Código do Ativo'] === 543.0) {
+                $data[$chave] = $this->utilCcee->addExcecoesUsinas($data[$chave]);
+            }
+            elseif ($data[$chave]['Código do Ativo'] === 212.0) {
+                $data212[] = $data[$chave];
+                unset ($data[$chave]);
+            }
+        }
+        $data[$fim] = $this->utilCcee->addExcecao212($data212, $chave, $fim);
+
+        return $data;
+    }
+
+
+    public  function leilao($file, $sheet)
+    {
+        $carbon = Carbon::now();
+        $date_indice = $carbon->format('m_Y');
+
+        $indices = ['ID de Negociação',
+                    'Número de Leilão',
+                    'Tipo de Leilão',
+                    'Número de Edital',
+                    'Produto',
+                    'Sigla do Vendedor',
+                    'Razão Social do Vendedor',
+                    'CNPJ do Vendedor',
+                    'Sigla do Comprador',
+                    'Razão Social do  Comprador',
+                    'CNPJ do Comprador',
+                    'CEG',
+                    'Nome da Usina',
+                    'Situação',
+                    'Nota Explicativa',
+                    'Submercado do Registro do Contrato',
+                    'Tipo de Usina',
+                    'UF da Usina',
+                    'Fonte Energética',
+                    'Combustível ou Rio da Usina',
+                    'Potência da Usina (MW)',
+                    'Potência Final Instalada (MWmed)',
+                    'Garantia Física da Usina (MWmed)',
+                    'Energia Negociada por Contrato (MWh)',
+                    'Energia Negociada por Contrato para o Ano A (MWmed)',
+                    'Energia Negociada por Contrato para o Ano A + 1 (MWmed)',
+                    'Energia Negociada por Contrato para o Ano A + 2 (MWmed)',
+                    'Energia Negociada por Contrato para o Ano A + 3 (MWmed)',
+                    'Energia Negociada por Contrato para os demais anos (MWmed)',
+                    'Tipo de Contrato(QTD/DIS)',
+                    'Montante financeiro negociado por contrato (em milhões R$)',
+                    'Montante financeiro negociado por contrato atualizado (Reais em milhões)',
+                    'Preço de Venda ou ICB na data do leilão (R$/MWh)',
+                    'ICE (R$/MWh)',
+                    'Data de Realização do leilão',
+                    'IPCA na data do leilão',
+                    'IPCA ' . $date_indice,
+                    'Preço de venda atualizado (R$/MWh)',
+                    'Receita fixa por contrato na data do leilão para o ano A (R$/ano)',
+                    'Receita fixa por contrato na data do leilão para o ano A + 1 (R$/ano)',
+                    'Receita fixa por contrato na data do leilão para os demais anos (R$/ano)',
+                    'Data do Início de Suprimento',
+                    'Data do Fim de Suprimento',
+                    'Possibilidade de escalonamento da entrega da energia do contrato (SIM/NÃO)',
+                    'Entrega escalonada (SIM/NÃO)'
+        ];
+
+        $rowData = $this->util->import(10, $sheet, $file, 9999999, 0);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $data[$key] = array_combine($indices,  array_slice($item, 1));
+
+            $inicio = 2000 + $this->regexCcee->getSuprimento($data[$key]['Data do Início de Suprimento']);
+            $fim = 2000 + $this->regexCcee->getSuprimento($data[$key]['Data do Fim de Suprimento']);
+
+            $data[$key]['Energia Negociada por Contrato para '. ($inicio) .' (MWh)'] = $this->utilCcee->calculaDias($data[$key]['Data do Início de Suprimento'], $data[$key]['Energia Negociada por Contrato para o Ano A (MWmed)']);
+
+            for ($i = 1; $i < $fim - $inicio; $i++){
+                $diasAno = $this->util->diasAno($inicio + $i);
+                if ($i < 4) {
+                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] = $data[$key]['Energia Negociada por Contrato para o Ano A + '. $i .' (MWmed)'] * 24 * $diasAno;
+                } else {
+                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] = $data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)'] * 24 * $diasAno;
+                }
+            }
+            $data[$key]['Energia Negociada por Contrato para '. ($fim) .' (MWh)'] = $this->utilCcee->calculaDias($data[$key]['Data do Fim de Suprimento'], 0, $data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)']);
+
+            $data[$key]['Data de Realização do leilão'] = $this->util->dateEdit($data[$key]['Data de Realização do leilão']);
+            $data[$key]['Data do Início de Suprimento'] = $this->util->dateEdit($data[$key]['Data do Início de Suprimento']);
+            $data[$key]['Data do Fim de Suprimento'] = $this->util->dateEdit($data[$key]['Data do Fim de Suprimento']);
+        }
+        return $data;
     }
 
 }

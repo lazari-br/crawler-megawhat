@@ -12,6 +12,7 @@ use Crawler\Model\ArangoDb;
 use Carbon\Carbon;
 use Crawler\Regex\RegexEpe;
 use Crawler\Excel\ImportExcelRdh;
+use Crawler\Util\Util;
 
 class RdhController extends Controller
 {
@@ -19,10 +20,12 @@ class RdhController extends Controller
     private $arangoDb;
     private $regexEpe;
     private $importExcelRdh;
+    private $util;
 
     public function __construct(StorageDirectory $storageDirectory,
                                 ArangoDb $arangoDb,
                                 RegexEpe $regexEpe,
+                                Util $util,
                                 ImportExcelRdh $importExcelRdh)
 
     {
@@ -30,6 +33,7 @@ class RdhController extends Controller
         $this->arangoDb = $arangoDb;
         $this->regexEpe = $regexEpe;
         $this->importExcelRdh = $importExcelRdh;
+        $this->util = $util;
     }
 
 
@@ -47,27 +51,7 @@ class RdhController extends Controller
             $carbon
         );
 
-        try {
-            if ($this->arangoDb->collectionHandler()->has('rdh')) {
-
-                $this->arangoDb->documment()->set('rdh_diario', $resultado);
-                $this->arangoDb->documentHandler()->save('rdh', $this->arangoDb->documment());
-
-            } else {
-
-                // create a new collection
-                $this->arangoDb->collection()->setName('rdh');
-                $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                $this->arangoDb->documment()->set('rdh_diario', $resultado);
-                $this->arangoDb->documentHandler()->save('rdh', $this->arangoDb->documment());
-            }
-        } catch (ArangoConnectException $e) {
-            print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoClientException $e) {
-            print 'Client error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoServerException $e) {
-            print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-        }
+        $this->util->enviaBanco('rdh', 'rds-diario', $date, $resultado);
 
         return response()->json([
             'responsabilidade' => 'Buscar os dados de ENA acessados por e-mail',

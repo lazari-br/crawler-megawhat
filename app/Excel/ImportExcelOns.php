@@ -10,17 +10,20 @@ namespace Crawler\Excel;
 
 use Carbon\Carbon;
 use Maatwebsite\Excel\Excel;
+use Crawler\Util\Util;
 
 class ImportExcelOns
 {
     private $excel;
     private $startRow;
+    private $util;
 
 
-    public function __construct(Excel $excel)
+    public function __construct(Excel $excel,
+                                Util $util)
     {
         $this->excel = $excel;
-
+        $this->util = $util;
     }
 
     public function setConfigStartRow($row)
@@ -103,26 +106,10 @@ class ImportExcelOns
 
         $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste', 'Total'];
 
-        $this->setConfigStartRow(8);
-
-        $rowDataNorte = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) {
-                $reader->limitRows(8);
-            })
-            ->first()
-            ->toArray();
-
+        $rowDataNorte = $this->util->import(8, $sheet, $file, 8, 0);
         $norte = array_column(array_map($explode, array_slice(array_keys($rowDataNorte), 2)), "0");
 
-        $this->setConfigStartRow(19);
-
-        $rowDataSul = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) {
-                $reader->limitRows(19);
-            })
-            ->first()
-            ->toArray();
-
+        $rowDataSul = $this->util->import(19, $sheet, $file, 19, 0);
         $sul = array_column(array_map($explode, array_slice(array_keys($rowDataSul), 2)), "0");
 
         $valNorte = array_sum($norte);
@@ -155,24 +142,10 @@ class ImportExcelOns
 
         $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste'];
 
-        $this->setConfigStartRow(12);
-        $rowDataNorte = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) {
-                $reader->limitRows(12);
-            })
-            ->first()
-            ->toArray();
-
+        $rowDataNorte = $this->util->import(12, $sheet, $file, 12, 0);
         $dataNorteEdit = array_keys($rowDataNorte);
 
-        $this->setConfigStartRow(23);
-        $rowDataSul = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) {
-                $reader->limitRows(23);
-            })
-            ->first()
-            ->toArray();
-
+        $rowDataSul = $this->util->import(23, $sheet, $file, 23, 0);
         $dataSulEdit = array_keys($rowDataSul);
 
         $validaDataNorte = array_map($valida, $dataNorteEdit);
@@ -1175,17 +1148,20 @@ class ImportExcelOns
     public function pmoUsina($file, $sheet)
     {
         $indice = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Leilão', 'UG', '(MW)', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
+        $indiceMescla = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Leilão'];
 
-        $this->setConfigStartRow(2);
-        $rowData = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(172);
-            })
-            ->toArray();
+        $rowData = $this->util->import(2, $sheet, $file, 172, 0);
 
         foreach ($rowData as $key=>$item)
         {
             $data[] = array_combine($indice, array_values($item));
+        }
+
+        foreach ($data as $chave=>$conteudo)
+        {
+            foreach ( $indiceMescla as $item){
+                $data = $this->util->celulaMesclada($data, $item, 1);
+            }
         }
         return $data;
     }
@@ -1193,6 +1169,7 @@ class ImportExcelOns
     public function pmoUsinaComb($file, $sheet)
     {
         $indice = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)','Combustível', 'Leilão', 'UG', '(MW)', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
+        $indiceMescla = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Combustível', 'Leilão'];
 
         $this->setConfigStartRow(2);
         $rowData = \Excel::selectSheetsByIndex($sheet)
@@ -1205,6 +1182,14 @@ class ImportExcelOns
         {
             $data[] = array_combine($indice, array_values($item));
         }
+
+        foreach ($data as $chave=>$conteudo)
+        {
+            foreach ( $indiceMescla as $item){
+                $data = $this->util->celulaMesclada($data, $item, 1);
+            }
+        }
+
         return $data;
     }
 
@@ -1239,7 +1224,7 @@ class ImportExcelOns
 
         foreach ($rowData as $key=>$value)
         {
-            $usina= array_combine($indice, [$value['tipo'], $value['subsistema'], $value['usina']]);
+            $usina = array_combine($indice, [$value['tipo'], $value['subsistema'], $value['usina']]);
 
             $dataValor['Valores'][$date] = array_combine($meses, array_slice($value, 3, 12));
             $dataValor['Valores'][$date + 1] = array_combine($meses, array_slice($value, 15, 12));
@@ -1286,7 +1271,7 @@ class ImportExcelOns
 
         foreach ($rowData as $key=>$value)
         {
-            $usina= array_combine($indice, [$value['tipo'], $value['origem'], $value['subsistema'], $value['usina'], $value['merc.']]);
+            $usina = array_combine($indice, [$value['tipo'], $value['origem'], $value['subsistema'], $value['usina'], $value['merc.']]);
 
             $dataValor['Valores'][$date] = array_combine($meses, array_slice($value, 5, 12));
             $dataValor['Valores'][$date + 1] = array_combine($meses, array_slice($value, 17, 12));

@@ -20,13 +20,13 @@ class RegexCceeNewaveDecomp extends AbstractRegex
 
     public function setInicioDecomp($page_acesso)
     {
-        $regex = '/\(REGISTRO DP\)(.*)/';
+        $regex = '/CARGA DOS SUBSISTEMAS(.*)/';
         return $this->regexFirst($regex, $page_acesso, 0);
     }
 
     public function setFimDecomp($page_acesso)
     {
-        $regex = '/(.*)BLOCO 7/';
+        $regex = '/(.*?).BLOCO./';
         return $this->regexFirst($regex, $page_acesso, 0);
     }
 
@@ -90,4 +90,19 @@ class RegexCceeNewaveDecomp extends AbstractRegex
         return $this->regexFirst($regex, $page_acesso, 0);
     }
 
+    public function validaDecomp($page_acesso)
+    {
+        $regex = '/([0-9]{2}.0)/';
+        if ($this->regexFirst($regex, $page_acesso, 0)) {
+            return 'encontrado';
+        }
+    }
+
+    public function validaDecompMult($page_acesso)
+    {
+        $regex = '/([0-9]{3}.0)/';
+        if ($this->regexFirst($regex, $page_acesso, 0)) {
+            return 'encontrado';
+        }
+    }
 }

@@ -25,7 +25,7 @@ return [
         // user for basic authorization
         ArangoConnectionOptions::OPTION_AUTH_USER => env('OPTION_AUTH_USER', 'root'),
         // password for basic authorization
-        ArangoConnectionOptions::OPTION_AUTH_PASSWD => env('OPTION_AUTH_PASSWD', ''),
+        ArangoConnectionOptions::OPTION_AUTH_PASSWD => env('OPTION_AUTH_PASSWD', 'root'),
         // connection persistence on server. can use either 'Close' (one-time connections) or 'Keep-Alive' (re-used connections)
         ArangoConnectionOptions::OPTION_CONNECTION => env('OPTION_CONNECTION', 'Keep-Alive'),
         // connect timeout in seconds

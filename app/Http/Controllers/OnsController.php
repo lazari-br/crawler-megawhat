@@ -6,15 +6,16 @@ use Carbon\Carbon;
 use Crawler\Regex\RegexOns;
 use Crawler\Regex\RegexSdroDiario;
 use Crawler\Regex\RegexSdroSemanal;
+use Crawler\Services\DuskService;
+use Crawler\Services\ImportServiceONS;
 use Crawler\StorageDirectory\StorageDirectory;
 use Crawler\Util\Util;
+use Crawler\Util\UtilOns;
 use Illuminate\Http\Request;
 use Ixudra\Curl\Facades\Curl;
 use Goutte\Client;
 use Crawler\Regex\RegexMltEnas;
 use Crawler\Model\ArangoDb;
-use Crawler\Excel\ImportExcelOns;
-
 
 class OnsController extends Controller
 {
@@ -26,6 +27,8 @@ class OnsController extends Controller
     private $arangoDb;
     private $regexOns;
     private $importExcelOns;
+    private $util;
+    private $utilOns;
 
 
     public function __construct(RegexSdroSemanal $regexSdroSemanal,
@@ -35,7 +38,9 @@ class OnsController extends Controller
                                 RegexMltEnas $regexMltEnas,
                                 RegexOns $regexOns,
                                 RegexSdroDiario $regexSdroDiario,
-                                ImportExcelOns $importExcelOns
+                                Util $util,
+                                UtilOns $utilOns,
+                                ImportServiceONS $importExcelOns
 )
     {
         $this->regexSdroSemanal = $regexSdroSemanal;
@@ -46,7 +51,8 @@ class OnsController extends Controller
         $this->arangoDb = $arangoDb;
         $this->regexOns = $regexOns;
         $this->importExcelOns = $importExcelOns;
-
+        $this->util= $util;
+        $this->utilOns= $utilOns;
     }
 
 
@@ -60,7 +66,6 @@ class OnsController extends Controller
 
         $date_format = Util::getDateIso();
 
-
         $response = Curl::to($url_base)
             ->returnResponseObject()
             ->get();
@@ -68,67 +73,20 @@ class OnsController extends Controller
         if ($response->status == 200) {
 
             $url = $this->regexSdroSemanal->capturaUrlAtual($response->content);
-            $response_2 = Curl::to($url_base . $url)
-                ->get();
+            $response_2 = Curl::to($url_base . $url)->get();
 
             $data_de_ate = $this->regexSdroSemanal->capturaUrlData($url);
             $url_download_xls = $this->regexSdroSemanal->capturaUrlDownloadExcel($response_2);
             $url_download_xls_name = $this->regexSdroSemanal->capturaUrlDownloadName($url_download_xls);
-
 
             $results_download = Curl::to($url_base . $data_de_ate . $url_download_xls)
                 ->withContentType('application/xlsx')
                 ->download('');
             $url_download[$date_format]['url_download_semanal'] = $this->storageDirectory->saveDirectory('ons/semanal/' . $date_format . '/', $url_download_xls_name, $results_download);
 
-            // Importação dos dados da planilha
-            $sheet = 7; // 07-Motivo de Dispacho Térmico
-            $startRow = 6;
-            $takeRows = 200;
-            $resultado[$date_format]['Motivo do dispacho termoelétrico']['MWh'] = $this->importExcelOns->onsMotDispMWh(
-                storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 12; // 12-Grandezas Hidroenergéticas
-            $resultado[$date_format]['ENA']['MWm'] = $this->importExcelOns->onsEnaSemanalMWm(
-                storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
-                $sheet,
-                $carbon
-            );
-            $sheet = 12; // 12-Grandezas Hidroenergéticas
-            $resultado[$date_format]['ENA']['% MLT'] = $this->importExcelOns->onsEnaSemanalPerc(
-                storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
-                $sheet,
-                $carbon
-            );
+            $resultado = $this->importExcelOns->importSdroSemanal($url_download, $date_format, $carbon);
 
-
-            try {
-                if ($this->arangoDb->collectionHandler()->has('ons')) {
-
-                    $this->arangoDb->documment()->set('ons_semanal', $url_download);
-                    $this->arangoDb->documment()->set('ons_semanal', $resultado);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-
-                } else {
-
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('ons');
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                    $this->arangoDb->documment()->set('ons_semanal', $url_download);
-                    $this->arangoDb->documment()->set('ons_semanal', $resultado);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
+            $this->util->enviaBanco('ons', 'ons_semanal', $date, $resultado);
 
             return response()->json([
                 'site' => 'http://sdro.ons.org.br/SDRO/semanal/',
@@ -177,211 +135,10 @@ class OnsController extends Controller
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
               // Importação dos dados das planilhas
-            $sheet = 8; // 08-Produção Hidráulica
-            $startRow = 4;
-            $takeRows = 9;
-            $url_download[$date_format]['data']['diário']['Produção']['Hidráulica']['GWh'] = $this->importExcelOns->onsProdHidGWh(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 8; // 08-Produção Hidráulica
-            $startRow = 12;
-            $takeRows = 17;
-            $url_download[$date_format]['data']['diário']['Produção']['Hidráulica'] ['MWmed'] = $this->importExcelOns->onsProdHidMWm(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 8; // 08-Produção Hidráulica
-            $startRow = 23;
-            $takeRows = 300;
-            $url_download[$date_format]['data']['diário']['Produção'] ['Hidráulica'] ['por Usina'] = $this->importExcelOns->onsProdHidUsina(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 9; // 09-Produção Térmica
-            $startRow = 4;
-            $takeRows = 8;
-            $url_download[$date_format]['data']['diário']['Produção']['Térmica']['GWh'] = $this->importExcelOns->onsProdTerGWh(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 9; // 09-Produção Térmica
-            $startRow = 11;
-            $takeRows = 15;
-            $url_download[$date_format]['data']['diário']['Produção']['Térmica'] ['MWmed'] = $this->importExcelOns->onsProdTerMWm(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 9; // 09-Produção Térmica
-            $startRow = 21;
-            $takeRows = 300;
-            $url_download[$date_format]['data']['diário']['Produção'] ['Térmica'] ['por Usina'] = $this->importExcelOns->onsProdTerUsina(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 10; // 10-Produção Eólica
-            $startRow = 4;
-            $takeRows = 8;
-            $url_download[$date_format]['data']['diário']['Produção']['Eólica']['GWh'] = $this->importExcelOns->onsProdEolGWh(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 10; // 10-Produção Eólica
-            $startRow = 11;
-            $takeRows = 15;
-            $url_download[$date_format]['data']['diário']['Produção']['Eólica'] ['MWmed'] = $this->importExcelOns->onsProdEolMWm(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 10; // 10-Produção Eólica
-            $startRow = 21;
-            $takeRows = 300;
-            $url_download[$date_format]['data']['diário']['Produção'] ['Eólica'] ['por Usina'] = $this->importExcelOns->onsProdEolUsina(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 11; // 11-Produção Solar
-            $startRow = 4;
-            $takeRows = 8;
-            $url_download[$date_format]['data']['diário']['Produção']['Solar']['GWh'] = $this->importExcelOns->onsProdSolGWh(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 11; // 11-Produção Solar
-            $startRow = 11;
-            $takeRows = 15;
-            $url_download[$date_format]['data']['diário']['Produção']['Solar'] ['MWmed'] = $this->importExcelOns->onsProdSolMWm(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 11; // 11-Produção Solar
-            $startRow = 21;
-            $takeRows = 300;
-            $url_download[$date_format]['data']['diário']['Produção'] ['Solar'] ['por Usina'] = $this->importExcelOns->onsProdSolUsina(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 21; // 21-Energia Natural Afluente
-            $startRow = 4;
-            $takeRows = 7;
-            $url_download[$date_format]['data']['diário']['ENA'] = $this->importExcelOns->onsEna(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 21; // 21-Energia Natural Afluente
-            $startRow = 4;
-            $takeRows = 7;
-            $url_download[$date_format]['data']['diário']['ENA'] = $this->importExcelOns->onsEnaTotal(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 15; // 15-Carga Diária por Subsistema
-            $startRow = 6;
-            $takeRows = 10;
-            $url_download[$date_format]['data']['diário']['Carga']['GWh'] = $this->importExcelOns->onsCargaGWh(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 15; // 15-Carga Diária por Subsistema
-            $startRow = 13;
-            $takeRows = 17;
-            $url_download[$date_format]['data']['diário']['Carga']['MWmed'] = $this->importExcelOns->onsCargaMWm(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 20; // 20-Variação Energia Armazenada
-            $startRow = 5;
-            $takeRows = 7;
-            $url_download[$date_format]['data']['diário']['EAR (MWmês)'] = $this->importExcelOns->onsEar(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
-            $sheet = 20; // 20-Variação Energia Armazenada
-            $startRow = 5;
-            $takeRows = 7;
-            $url_download[$date_format]['data']['diário']['EAR (MWmês)'] = $this->importExcelOns->onsEarTotal(
-                storage_path('app') . '/' . $url_download[$date_format]['file'][0],
-                $sheet,
-                $startRow,
-                $takeRows,
-                $carbon
-            );
+          $url_download = $this->importExcelOns->importSdroDiario($url_download, $date_format, $carbon);
 
+            $this->util->enviaBanco('ons', 'ons_boletim_diario', $date_format, $url_download);
 
-
-
-            try {
-                if ($this->arangoDb->collectionHandler()->has('ons')) {
-
-                    $this->arangoDb->documment()->set('ons_boletim_diario', $url_download);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-
-                } else {
-
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('ons');
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                    $this->arangoDb->documment()->set('ons_boletim_diario', $url_download);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
             return response()->json([
                 'site' => 'http://sdro.ons.org.br/SDRO/DIARIO/',
                 'responsabilidade' => 'Realizar download do arquivo diario Ons',
@@ -426,27 +183,8 @@ class OnsController extends Controller
             $url_download[$date_format]['url_download_mlt_semanal'] = $this->storageDirectory->saveDirectory('ons/mlt/diario/' . $date_format . '/', $captura_name, $results_download);
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
-            try {
-                if ($this->arangoDb->collectionHandler()->has('ons')) {
+            $this->util->enviaBanco('ons', 'ons_enas_diario', $date_format, $url_download);
 
-                    $this->arangoDb->documment()->set('ons_enas_diario', $url_download);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-
-                } else {
-
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('ons');
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                    $this->arangoDb->documment()->set('ons_enas_diario', $url_download);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
             return response()->json([
                 'site' => 'https://agentes.ons.org.br/',
                 'responsabilidade' => 'Realizar download do arquivo enas diario',
@@ -480,27 +218,7 @@ class OnsController extends Controller
 
         // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
-        try {
-            if ($this->arangoDb->collectionHandler()->has('ons')) {
-
-                $this->arangoDb->documment()->set('ons_ipdo', $url_download);
-                $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-
-            } else {
-
-                // create a new collection
-                $this->arangoDb->collection()->setName('ons');
-                $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                $this->arangoDb->documment()->set('ons_ipdo', $url_download);
-                $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-            }
-        } catch (ArangoConnectException $e) {
-            print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoClientException $e) {
-            print 'Client error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoServerException $e) {
-            print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-        }
+        $this->util->enviaBanco('ons', 'ons_ipdo', $date_format, $url_download);
 
         return response()->json([
             'site' => 'http://ons.org.br/',
@@ -521,63 +239,36 @@ class OnsController extends Controller
         $page = $curl->exeCurl(
             [
                 CURLOPT_URL => $url_base . "/pt/paginas/conhecimento/acervo-digital/documentos-e-publicacoes?categoria=Relat%C3%B3rio+PMO",
-            ]
+            ]);
 
-        );
-dd($page);
         if($curl->statuspageCurl() == 200) {
 
             $get_disgest = $this->regexOns->capturaRequestDigest($page);
-dd($get_disgest);
+
             $headers = ['X-Requested-With: XMLHttpRequest', 'Content-Type: text/xml', 'X-RequestDigest: ' . $get_disgest];
             $result = $curl->exeCurl(
                 [
                     CURLOPT_URL => $url_base . "/_vti_bin/client.svc/ProcessQuery",
                     CURLOPT_HTTPHEADER => $headers,
                     CURLOPT_POSTFIELDS => $data_raw
-                ]
-
-            );
+                ]);
 
             $results = explode('_ObjectType_":"SP.ListItem', $result);
 
             foreach ($results as $result) {
                 $get_url_download = $this->regexOns->getUrlDownload($result);
             }
-
             $get_name_download = $this->regexOns->getNameDownload($get_url_download);
             $mont_url = $url_base . $get_url_download;
 
-            $results_download = $curl->exeCurl(array(
-                    CURLOPT_URL => $mont_url
-                )
-            );
+            $results_download = $curl->exeCurl(array(CURLOPT_URL => $mont_url));
 
             $url_download[$date_format]['url_download_pmo_semanal'] = $this->storageDirectory->saveDirectory('ons/pmo/' . $date_format . '/', $get_name_download, $results_download);
 
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
-            try {
-                if ($this->arangoDb->collectionHandler()->has('ons')) {
+            $this->util->enviaBanco('ons', 'ons_pmo_semanal', $date_format, $url_download);
 
-                    $this->arangoDb->documment()->set('ons_pmo_semanal', $url_download);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-
-                } else {
-
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('ons');
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                    $this->arangoDb->documment()->set('ons_pmo_semanal', $url_download);
-                    $this->arangoDb->documentHandler()->save('ons', $this->arangoDb->documment());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
             return response()->json([
                 'site' => 'https://agentes.ons.org.br/',
                 'responsabilidade' => 'Realizar download do arquivo enas diario',
@@ -591,90 +282,31 @@ dd($get_disgest);
     }
 
 
-    public function pmoCdre(\Crawler\Curl\Curl $curl)
+    public function pmoCdre()
     {
-        set_time_limit(1000);
+        $date = Util::getDateIso();
+        $zip = new \ZipArchive;
 
+        $download = $this->utilOns->acessoCdre();
+//        die;
+dd($download);
+        $resultado['file'] = $this->storageDirectory->saveDirectory('ons/mensal/pmo/'. $date,  '/pmo_'. $date .'.zip', $download);
+die;
+        if ($zip->open(storage_path('app/ons/mensal/pmo/' . $date . '/pmo_' . $date . '.zip')) === TRUE) {
+            $zip->extractTo(storage_path('app/ons/mensal/pmo/' . $date . '/pmo/', 'Memorial de calculo das usinas nao simuladas individualmente - PMO '. $date .'.xlsx'))
+                ->extractTo(storage_path('app/ons/mensal/pmo/' . $date . '/pmo/', 'Cronograma_Reuniao_DMSE_'. $date .'.xlsx'))
+                ->close();
+        }
 
-//        $date_format = Util::getDateIso();
-//
-//        $data_raw = 'wa=wsignin1.0&wtrealm=+https%3a%2f%2fcdre.ons.org.br%2f_trust%2f&wctx=https%3a%2f%2fcdre.ons.org.br%2f_layouts%2f15%2fAuthenticate.aspx%3fSource%3d%252F&wreply=https%3a%2f%2fcdre.ons.org.br%2f_trust%2fdefault.aspx';
-//
-////        $url_base = 'http://ons.org.br';
-//
-//        $page = $curl->exeCurl(
-//            [
-//                CURLOPT_URL => "https://pops.ons.org.br/ons.pop.federation/?",
-//            ]
-//
-//        );
-//
-//
-//dd($page);
-//
-//
-//
-//        $crawler = $this->client->request('GET', 'https://pops.ons.org.br/ons.pop.federation/?', array('allow_redirects' => true));
-//            $form = $crawler->selectButton('Entrar')->form();
-//            $this->client->submit($form, array('username' => 'victor.shinohara', 'password' => 'comerc@12345'));
-//            $this->client->getCookieJar();
-//
-//        $response = $this->client->request('GET', 'https://pops.ons.org.br/ons.pop.federation/redirect/?wa=wsignin1.0&wtrealm=+https%3a%2f%2fcdre.ons.org.br%2f_trust%2f&wctx=https%3a%2f%2fcdre.ons.org.br%2f_layouts%2f15%2fAuthenticate.aspx%3fSource%3d%252F&wreply=https%3a%2f%2fcdre.ons.org.br%2f_trust%2fdefault.aspx/', array('allow_redirects' => true));
-//
-//        $response3 = $this->client->request('POST', 'https://cdre.ons.org.br/_trust/', array('allow_redirects' => true));
-//
-//        $request = $this->client->getInternalResponse()->getHeader('SPRequestGuid');
-//        $teste = $this->client->request('GET', 'https://cdre.ons.org.br/', array('allow_redirects'=> true, 'headers' => ['SPRequestGuid'=> $this->client->getInternalResponse()->getHeader('SPRequestGuid')]));
-//
-//dd($this->client->getResponse());
+die;
 
-        // Importação dos dados da planilha
-        //CRONOGRAMA
-//        $sheet = 0; // UFV
-//        $resultado ['Cronograma']['UFV'] = $this->importExcelOns->pmoUsina(
-//            storage_path('app') .'/Cronograma_Reuniao_DMSE_jun18.xlsx',
-//            $sheet
-//        );
-//        $sheet = 1; // UEE
-//        $resultado ['Cronograma']['UEE'] = $this->importExcelOns->pmoUsina(
-//            storage_path('app') .'/Cronograma_Reuniao_DMSE_jun18.xlsx',
-//            $sheet
-//        );
-//        $sheet = 2; // BIO
-//        $resultado ['Cronograma']['BIO'] = $this->importExcelOns->pmoUsinaComb(
-//            storage_path('app') .'/Cronograma_Reuniao_DMSE_jun18.xlsx',
-//            $sheet
-//        );
-//        $sheet = 3; // UTE
-//        $resultado ['Cronograma']['UTE'] = $this->importExcelOns->pmoUsinaComb(
-//            storage_path('app') .'/Cronograma_Reuniao_DMSE_jun18.xlsx',
-//            $sheet
-//        );
-//        $sheet = 4; // PCH
-//        $resultado ['Cronograma']['PCH'] = $this->importExcelOns->pmoUsina(
-//            storage_path('app') .'/Cronograma_Reuniao_DMSE_jun18.xlsx',
-//            $sheet
-//        );
-//        $sheet = 5; // UHE
-//        $resultado ['Cronograma']['UHE'] = $this->importExcelOns->pmoUsina(
-//            storage_path('app') .'/Cronograma_Reuniao_DMSE_jun18.xlsx',
-//            $sheet
-//        );
+        //Importação dos dados da planilha
+        $pathNsimulada = storage_path('app/ons/mensal/pmo/' . $date) .'/Memorial de calculo das usinas nao simuladas individualmente - PMO '. $date .'.xlsx';
+        $pathCronograma = storage_path('app/ons/mensal/pmo/' . $date) .'/Cronograma_Reuniao_DMSE_'. $date .'.xlsx';
 
-        //NÃO SIMULADAS
-        $sheet = 2; // Existentes_CCEE
-        $resultado ['Não Simulada']['Existentes'] = $this->importExcelOns->pmoNaoSimuladasExistente(
-            storage_path('app') .'/Mem¢ria de C lculo das Usinas NÆo Simuladas Individualmente - PMO jun-18.xlsx',
-            $sheet
-        );
-        $sheet = 3; // Expansão (440-2011 e 476-2012)
-        $resultado ['Não Simulada']['Expansão'] = $this->importExcelOns->pmoNaoSimuladasExpansao(
-            storage_path('app') .'/Mem¢ria de C lculo das Usinas NÆo Simuladas Individualmente - PMO jun-18.xlsx',
-            $sheet
-        );
+        $resultado = $this->importExcelOns->importPmoCdre($pathNsimulada, $pathCronograma);
 
-
-dd($resultado);
+        $this->util->enviaBanco('ons', 'usinas', $date, $resultado);
 
         }
 

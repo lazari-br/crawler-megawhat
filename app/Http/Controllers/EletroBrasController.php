@@ -21,18 +21,21 @@ class EletroBrasController extends Controller
     private $arangoDb;
     private $regexEletrobras;
     private $importExcel;
+    private $util;
 
 
 
     public function __construct(StorageDirectory $storageDirectory,
                                 ArangoDb $arangoDb,
                                 RegexEletrobras $regexEletrobras,
+                                Util $util,
                                 ImportExcel $importExcel)
     {
         $this->storageDirectory = $storageDirectory;
         $this->arangoDb = $arangoDb;
         $this->regexEletrobras = $regexEletrobras;
         $this->importExcel = $importExcel;
+        $this->util= $util;
 
     }
 
@@ -40,6 +43,8 @@ class EletroBrasController extends Controller
     {
         $carbon = Carbon::now();
         $ano = $carbon->year;
+        $date = $carbon->format('Y-m-d');
+
         $url_base = 'http://eletrobras.com';
 
         $url = $url_base.'/pt/FundosSetoriaisCDE/Forms/AllItems.aspx';
@@ -62,29 +67,8 @@ class EletroBrasController extends Controller
 
             $resultado = $this->storageDirectory->saveDirectory('eletrobras/'.$ano.'/', 'CDE-'.$ano.'-Movimentação_Finaceira.xlsx', $url_download);
 
+            $this->util->enviaBanco('eletrobras', 'cde', $date, $resultado);
 
-            try {
-                if ($this->arangoDb->collectionHandler()->has('eletrobras')) {
-
-                    $this->arangoDb->documment()->set('cde', [Util::getDateIso() => $resultado]);
-                    $this->arangoDb->documentHandler()->save('eletrobras', $this->arangoDb->documment());
-
-                } else {
-
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('eletrobras');
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-
-                    $this->arangoDb->documment()->set('cde', [Util::getDateIso() => $resultado]);
-                    $this->arangoDb->documentHandler()->save('eletrobras', $this->arangoDb->documment());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
             return response()->json([
                 'site' => 'http://eletrobras.com',
                 'responsabilidade' => 'Realiza o download cde movimentação financeira!',

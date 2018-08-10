@@ -12,6 +12,7 @@ use Crawler\Model\ArangoDb;
 use Carbon\Carbon;
 use Crawler\Regex\RegexEpe;
 use Crawler\Excel\ImportExcelEpe;
+use Crawler\Util\Util;
 
 
 class EpeConsumoController extends Controller
@@ -20,10 +21,12 @@ class EpeConsumoController extends Controller
     private $arangoDb;
     private $regexEpe;
     private $importExcelEpe;
+    private $util;
 
     public function __construct(StorageDirectory $storageDirectory,
                                 ArangoDb $arangoDb,
                                 RegexEpe $regexEpe,
+                                Util $util,
                                 ImportExcelEpe $importExcelEpe)
 
     {
@@ -31,6 +34,7 @@ class EpeConsumoController extends Controller
         $this->arangoDb = $arangoDb;
         $this->regexEpe = $regexEpe;
         $this->importExcelEpe = $importExcelEpe;
+        $this->util= $util;
     }
 
     public function getConsumo()
@@ -61,43 +65,15 @@ class EpeConsumoController extends Controller
             $sheet = 1; // RESIDENCIAL
             $resultado[$date]['data']['Consumo']['Região Geográfica (MWh)'] = $this->importExcelEpe->epeConsReg(
                 storage_path('app') . '/' . $resultado[$date]['file'][0],
-
-                $sheet,
-                $carbon
+                $sheet
             );
             $sheet = 1; // RESIDENCIAL
             $resultado[$date]['data']['Consumo']['Subsistema (MWh)'] = $this->importExcelEpe->epeConsSubsist(
                 storage_path('app') . '/' . $resultado[$date]['file'][0],
-
-                $sheet,
-                $carbon
+                $sheet
             );
 
-            try {
-                if ($this->arangoDb->collectionHandler()->has('epe')) {
-
-                    $this->arangoDb->documment()->set('consumo', $resultado);
-                    $this->arangoDb->documentHandler()->save('epe', $this->arangoDb->documment());
-
-                } else {
-
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('epe');
-                    $this->arangoDb->documment()->set('consumo', $resultado);
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
-            return response()->json([
-                'site' => 'www.epe.gov.br',
-                'responsabilidade' => 'Realizar download do arquivo EPE consumo!.',
-                'status' => 'Crawler EPE realizado com sucesso!'
-            ]);
+            $this->util->enviaBanco('epe', 'consumo', $date, $resultado);
 
         }
         return response()->json([

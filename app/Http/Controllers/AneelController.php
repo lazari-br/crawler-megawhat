@@ -22,17 +22,21 @@ class AneelController extends Controller
     private $regexAneel;
     private $storageDirectory;
     private $arangoDb;
+    private $util;
 
-    public function __construct(RegexAneel $regexAneel, StorageDirectory $storageDirectory, ArangoDb $arangoDb)
+    public function __construct(RegexAneel $regexAneel,
+                                StorageDirectory $storageDirectory,
+                                ArangoDb $arangoDb,
+                                Util $util)
     {
         $this->regexAneel = $regexAneel;
         $this->storageDirectory = $storageDirectory;
         $this->arangoDb = $arangoDb;
+        $this->util = $util;
     }
 
     public function proInfa()
     {
-
 
         $response = Curl::to('http://biblioteca.aneel.gov.br/asp/resultadoFrame.asp?modo_busca=legislacao&content=resultado&iBanner=0&iEscondeMenu=0&iSomenteLegislacao=0&iIdioma=0&BuscaSrv=1')
             ->withData(
@@ -321,27 +325,7 @@ class AneelController extends Controller
 
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
-            try {
-                if ($this->arangoDb->collectionHandler()->has('aneel')) {
-
-                    $this->arangoDb->documment()->set('audiencia_publicas', [$date_format => $download_nota_tecnica]);
-                    $this->arangoDb->documentHandler()->save('aneel', $this->arangoDb->documment());
-
-                } else {
-                    // create a new collection
-                    $this->arangoDb->collection()->setName('aneel');
-                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-                    // create a new documment
-                    $this->arangoDb->documment()->set('audiencia_publicas', [$date_format => $download_nota_tecnica]);
-                    $this->arangoDb->documentHandler()->save('aneel', $this->arangoDb->documment());
-                }
-            } catch (ArangoConnectException $e) {
-                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoClientException $e) {
-                print 'Client error: ' . $e->getMessage() . PHP_EOL;
-            } catch (ArangoServerException $e) {
-                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-            }
+            $this->util->enviaBanco('aneel', 'audiencias_publicas', $date_format, $download_nota_tecnica);
 
             return response()->json(
                 [
@@ -373,7 +357,7 @@ class AneelController extends Controller
 
         $date = $this->regexAneel->getDataExpansao($response);
 
-//        if($response->status == 200){
+        //        if($response->status == 200){
 
         $peqCentrais = $url_base.$this->regexAneel->getPequenasCentrais($response);
         $eolicas = $url_base.$this->regexAneel->getEolicas($response);
@@ -383,87 +367,25 @@ class AneelController extends Controller
         $fotovoltaicas = $url_base.$this->regexAneel->getFotovoltaicas($response);
         $resumo = $url_base.$this->regexAneel->getResumo($response);
 
+        $fontes = ['pequenas_centrais_hidreletricas' => $peqCentrais,
+                   'usinas_eolicas' => $eolicas,
+                   'usinas_hidreletricas' => $hidreletricas,
+                   'usinas_biomassa' => $biomassa,
+                   'usinas_fotovoltaicas' => $fotovoltaicas];
 
-        if (isset ($peqCentrais)){
-            $download_peqCentrais = Curl::to($peqCentrais)
-                ->withContentType('application/pdf')
-                ->download('');
+        foreach ($fontes as $key => $fonte)
+        {
+            $download[$key] = $this->util->download($fonte, 'pdf');
+            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,$key . '.pdf', $download[$key]);
 
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'pequenas_centrais_hidreletricas.pdf', $download_peqCentrais);
+            $this->util->enviaBanco('aneel', $key, $date, $result);
+
         }
 
-        if (isset ($eolicas)){
-            $download_eolicas = Curl::to($hidreletricas)
-                ->withContentType('application/pdf')
-                ->download('');
+        $download_resumo = $this->util->download($resumo, 'xlsx');
+        $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'resumo_geral.xlsx', $download_resumo);
 
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'usinas_eolicas.pdf', $download_eolicas);
-        }
-
-        if (isset ($hidreletricas)){
-            $download_hidreletricas = Curl::to($hidreletricas)
-                ->withContentType('application/pdf')
-                ->download('');
-
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'usinas_hidreletricas.pdf', $download_hidreletricas);
-        }
-
-        if (isset ($termeletricas)){
-            $download_termeletricas = Curl::to($termeletricas)
-                ->withContentType('application/pdf')
-                ->download('');
-
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'usinas_termeletricas.pdf', $download_termeletricas);
-        }
-
-        if (isset ($biomassa)){
-            $download_biomassa = Curl::to($biomassa)
-                ->withContentType('application/pdf')
-                ->download('');
-
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'usinas_temeletricas_a_biomassa.pdf', $download_biomassa);
-        }
-
-        if (isset ($fotovoltaicas)){
-            $download_fotovoltaicas= Curl::to($fotovoltaicas)
-                ->withContentType('application/pdf')
-                ->download('');
-
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'usinas_fotovoltaicas.pdf', $download_fotovoltaicas);
-        }
-
-        if (isset ($resumo)){
-            $download_resumo = Curl::to($resumo)
-                ->withContentType('application/xlsx')
-                ->download('');
-
-            $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'resumo_geral.xlsx', $download_resumo);
-        }
-
-
-        try {
-            if ($this->arangoDb->collectionHandler()->has('aneel')) {
-
-                $this->arangoDb->documment()->set('expansao_da_oferta_de_geracao_de_energia_eletrica', [$date => $result]);
-                $this->arangoDb->documentHandler()->save('aneel', $this->arangoDb->documment());
-            } else {
-                $this->arangoDb->collection()->setName('aneel');
-                $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-
-                $this->arangoDb->documment()->set('expansao_da_oferta_de_geracao_de_energia_eletrica', [$date => $result]);
-                $this->arangoDb->documentHandler()->save('aneel', $this->arangoDb->documment());
-            }
-
-
-
-        }  catch
-        (ArangoConnectException $e) {
-            print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoClientException $e) {
-            print 'Client error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoServerException $e) {
-            print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-        }
+        $this->util->enviaBanco('aneel', $key, $date, $result);
 
         return response()->json(
             [
@@ -472,18 +394,9 @@ class AneelController extends Controller
                 'responsabilidade' => 'O crawler realiza o download do arquivo nota tecnica!',
                 'status' => 'Crawler Aneel realizado com sucesso!'
             ]);
-//        }         else{
-//                    return response()->json([
-//                        'site' => 'http://www.aneel.gov.br/audiencias-publicas',
-//                        'responsabilidade' => 'O crawler realiza o download do arquivo nota tecnica!',
-//                        'status' => 'O crawler não encontrou o arquivo especificado!'
-//                    ]);
-//                }
-
-
-
 
     }
+
 
   public function cegGeracao (Client $client)
     {
@@ -491,7 +404,7 @@ class AneelController extends Controller
 
         $url_base = "http://www2.aneel.gov.br/scg/consulta_empreendimento.asp?acao=BUSCAR&pagina=&IdTipoGeracao=&IdFaseUsina=&CodCIE=&NomeEmpreendimento=";
 
-        $response_base  = Curl::to($url_base )
+        $response_base = Curl::to($url_base )
             ->allowRedirect(true)
             ->withTimeout(1000)
             ->get();
@@ -500,7 +413,8 @@ class AneelController extends Controller
 
         $ultima = ceil($total);
 
-       for($pagina = 1; $pagina <= $ultima; $pagina++)
+        $dados = [];
+        for($pagina = 1; $pagina <= $ultima; $pagina++)
         {
             $url = 'http://www2.aneel.gov.br/scg/consulta_empreendimento.asp?acao=BUSCAR&pagina=' . $pagina . '&IdTipoGeracao=&IdFaseUsina=&CodCIE=&NomeEmpreendimento=';
 
@@ -521,11 +435,11 @@ class AneelController extends Controller
             $proprietario = $this->regexAneel->getProprietario($response);
             $municipio = $this->regexAneel->getMunicipio($response);
 
-                $dados = [];
+                $dadosPagina = [];
                 foreach ($ceg as $key => $item)
                 {
-                    $dados[$key] = array_merge
-                    (
+                    $dados[($pagina-1)*1000+$key] = $dadosPagina[$key] =
+                    [
                         $ceg[$key],
                         $tipo[$key],
                         $empreendimento[$key],
@@ -537,43 +451,21 @@ class AneelController extends Controller
                         $situacao[$key],
                         $proprietario[$key],
                         $municipio[$key]
-                    );
-                }
-        }
-dd($dados);
-//echo '<pre>', var_dump($dados);
-//die;
+                    ];
 
-//      try {
-//          if ($this->arangoDb->collectionHandler()->has('aneel')) {
-//
-//              $this->arangoDb->documment()->set('usinas', [$date => $dados]);
-//              $this->arangoDb->documentHandler()->save('aneel', $this->arangoDb->documment());
-//          } else {
-//              $this->arangoDb->collection()->setName('aneel');
-//              $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
-//
-//              $this->arangoDb->documment()->set('usinas', [$date => $dados]);
-//              $this->arangoDb->documentHandler()->save('aneel', $this->arangoDb->documment());
-//          }
-//
-//
-//      }  catch
-//      (ArangoConnectException $e) {
-//          print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-//      } catch (ArangoClientException $e) {
-//          print 'Client error: ' . $e->getMessage() . PHP_EOL;
-//      } catch (ArangoServerException $e) {
-//          print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
-//      }
-//
-//      return response()->json(
-//          [
-//              'site' => 'http://www.aneel.gov.br/audiencias-publicas',
-//              'palavra_chave' => 'conta desenvolvimento energetico aba encerrados',
-//              'responsabilidade' => 'O crawler realiza o download do arquivo nota tecnica!',
-//              'status' => 'Crawler Aneel realizado com sucesso!'
-//          ]);
+                }
+
+        }
+
+        $this->util->enviaBanco('aneel', 'usinas', $date, $dados);
+
+      return response()->json(
+          [
+              'site' => 'http://www.aneel.gov.br/audiencias-publicas',
+              'palavra_chave' => 'conta desenvolvimento energetico aba encerrados',
+              'responsabilidade' => 'O crawler realiza o download do arquivo nota tecnica!',
+              'status' => 'Crawler Aneel realizado com sucesso!'
+          ]);
 
     }
 

@@ -11,8 +11,6 @@
 |
 */
 
-
-
 Route::get('/', function () {
     return view('welcome');
 });
@@ -23,7 +21,6 @@ Route::prefix('aneel')->group(function () {
     Route::get('/cde-audiencia', 'AneelController@cdeAudiencia')->name('cde-audiencia');
     Route::get('/ceg', 'AneelController@cegGeracao')->name('ceg');
     Route::get('/expansao', 'AneelController@expansaoGeracao')->name('expansao');
-
 
 });
 
@@ -41,36 +38,24 @@ Route::prefix('ccee')->group(function () {
     Route::get('/historico-semanal', 'CceeController@historicoPrecoSemanal')->name('historico_semanal');
     Route::get('/info-mercado', 'CceeController@getInfoMercadoGeralAndIndividual')->name('info_mercado');
     Route::get('/historico-mensal', 'CceeController@historicoPrecoMensal')->name('historico_mensal');
-    Route::get('/decnewave', 'CceeController@deckNewwave')->name('decomp-neawave');
-
+    Route::get('/decknewave', 'CceeController@deckNewwave')->name('decomp-neawave');
+    Route::get('/leilao', 'CceeController@leiloesConsolidado')->name('leilao');
 
 });
 
 
 Route::get('/cde-eletrobras', 'EletroBrasController@getCde')->name('cde-eletrobras');
 Route::get('/epe-consumo', 'EpeConsumoController@getConsumo')->name('epe-consumo');
-
-
 Route::get('/rdh', 'RdhController@enaRdh')->name('rdh_ena');
 
-Route::get('/newave', 'NewaveController@cargaNewWave')->name('newave');
 
-Route::get('/decomp', 'DecompController@cargaDecomp')->name('decomp');
+Route::get('/protheus-pld', 'ProtheusController@pld')->name('pld');
 
+
+
+Route::get('/treino', 'AAAtreino@api')->name('treino');
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////TESTE////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-
-Route::get('/tesseract', function(){
-
-    $path = '/var/www/html/crawler-doc88/storage/app/aneel/mensal/Maio de 2018/pequenas_centrais_hidreletricas.pdf';
-
-        $cru = \OCR::scan($path);
-
-
-        dd($cru);
-
-})->name('teste');
 
