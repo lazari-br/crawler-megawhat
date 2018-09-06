@@ -59,6 +59,7 @@ class Util
         }
 
     }
+
     public static function getMesAno($mes_ano)
     {
       $date = Carbon::createFromFormat('m/Y',$mes_ano);
@@ -66,28 +67,33 @@ class Util
       return $date->format('Y-m');
     }
 
-    public function enviaBanco($fonte, $info, $date, $dados)
+    public function enviaArangoDB($fonte, $info, $date, $dados)
     {
-        try {
-            if ($this->arangoDb->collectionHandler()->has($fonte)) {
+        if (isset($dados)) {
 
-                $this->arangoDb->documment()->set($info, [$date => $dados]);
-                $this->arangoDb->documentHandler()->save($fonte, $this->arangoDb->documment());
-            } else {
-                $this->arangoDb->collection()->setName($fonte);
-                $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
+            try {
+                if ($this->arangoDb->collectionHandler()->has($fonte)) {
 
-                $this->arangoDb->documment()->set($info, [$date => $dados]);
-                $this->arangoDb->documentHandler()->save($fonte, $this->arangoDb->documment());
+                    $this->arangoDb->documment()->set($info, [$date, $dados]);
+                    $this->arangoDb->documentHandler()->save($fonte, $this->arangoDb->documment());
+                } else {
+                    $this->arangoDb->collection()->setName($fonte);
+                    $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
+
+                    $this->arangoDb->documment()->set($info, [$date, $dados]);
+                    $this->arangoDb->documentHandler()->save($fonte, $this->arangoDb->documment());
+                }
+
+            } catch
+            (ArangoConnectException $e) {
+                print 'Connection error: ' . $e->getMessage() . PHP_EOL;
+            } catch (ArangoClientException $e) {
+                print 'Client error: ' . $e->getMessage() . PHP_EOL;
+            } catch (ArangoServerException $e) {
+                print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
             }
-
-        } catch
-        (ArangoConnectException $e) {
-            print 'Connection error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoClientException $e) {
-            print 'Client error: ' . $e->getMessage() . PHP_EOL;
-        } catch (ArangoServerException $e) {
-            print 'Server error: ' . $e->getServerCode() . ':' . $e->getServerMessage() . ' ' . $e->getMessage() . PHP_EOL;
+        } else {
+            return response()->json(['error' => 'Os dados não foram capturados']);
         }
     }
 
@@ -137,7 +143,6 @@ class Util
 dd($data);
         return $import;
     }
-
 
     public  function celulaMesclada($array, $coluna, $numLinha)
     {
@@ -195,6 +200,110 @@ dd($data);
         } elseif ($mes === 'Dec') {
             return 'DEZ';
         }
+    }
+
+    public function mesMesportugues($mes)
+    {
+
+        if ($mes === '01'){
+            return 'janeiro';
+        } elseif ($mes === '02') {
+            return 'fevereiro';
+        } elseif ($mes === '03') {
+            return 'março';
+        } elseif ($mes === '04') {
+            return 'abril';
+        } elseif ($mes === '05') {
+            return 'maio';
+        } elseif ($mes === '06') {
+            return 'junho';
+        } elseif ($mes === '07') {
+            return 'julho';
+        } elseif ($mes === '08') {
+            return 'agosto';
+        } elseif ($mes === '09') {
+            return 'setembro';
+        } elseif ($mes === '10') {
+            return 'outubro';
+        } elseif ($mes === '11') {
+            return 'novembro';
+        } elseif ($mes === '12') {
+            return 'dezembro';
+        }
+    }
+
+    public function mesMesXXportugues($mes)
+    {
+
+        if ($mes === 'Janeiro'){
+            return 1;
+        } elseif ($mes === 'Fevereiro') {
+            return 2;
+        } elseif ($mes === 'Março') {
+            return 3;
+        } elseif ($mes === 'Abril') {
+            return 4;
+        } elseif ($mes === 'Maio') {
+            return 5;
+        } elseif ($mes === 'Junho') {
+            return 6;
+        } elseif ($mes === 'Julho') {
+            return 7;
+        } elseif ($mes === 'Agosto') {
+            return 8;
+        } elseif ($mes === 'Setembro') {
+            return 9;
+        } elseif ($mes === 'Outubro') {
+            return 10;
+        } elseif ($mes === 'Novembro') {
+            return 11;
+        } elseif ($mes === 'Dezembro') {
+            return 12;
+        }
+    }
+
+    public function formata_valores_mwh($arr)
+    {
+        $daysInMonths = [
+            '0' => 31,
+            '1' => Carbon::parse()->daysInMonth,
+            '2' => 31,
+            '3' => 30,
+            '4' => 31,
+            '5' => 30,
+            '6' => 31,
+            '7' => 31,
+            '8' => 30,
+            '9' => 31,
+            '10' => 30,
+            '11' => 31
+        ];
+
+        $arrPatamar = [];
+        array_walk($arr, function ($value, $key) use ($daysInMonths, &$arrPatamar) {
+            $total = $value;
+            if (!is_null($value)) {
+                $total_round = round($value * 24 * $daysInMonths[$key], 3);
+                $total = number_format($total_round, 10, ",", ".");
+            }
+            $arrPatamar[$key] = $total;
+        });
+
+        return $arrPatamar;
+    }
+
+    public function formata_valores ($arr)
+    {
+        $arrPatamar = [];
+        array_walk($arr, function ($value, $key) use (&$arrPatamar) {
+            $total = $value;
+            if (!is_null($value)) {
+                $total = number_format((float)$value, 10, ",", ".");
+            }
+            $arrPatamar[$key] = $total;
+        });
+
+        return $arrPatamar;
     }
 
 }

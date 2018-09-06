@@ -35,47 +35,65 @@ class ImportExcelEpe
     public function epeConsReg($file, $sheet)
     {
 
-        $indices = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
         $sistemas = ['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste'];
 
-        $format = function($n){
-           if (!is_null($n)){
-            return number_format($n, 3, ',', '.');
-        }};
+        $rowData = array_slice($this->util->import(6, $sheet, $file, 9999, 0), 2, 5);
 
-        $rowTotal = $this->util->import(6, $sheet, $file, 9999, 0);
-        $formatTot = array_map($format, array_slice($rowTotal, 1, 13));
-        $data['Total'] = array_combine($indices, $formatTot);
-
-        foreach ($sistemas as $key => $sistema)
-        {
-            $row = $this->util->import(6, $sheet, $file, 9999, 2 + $key);
-            $format = array_map($format, array_slice($row, 1, 13));
-            $data[$sistema] = array_combine($indices, $format);
+        foreach ($rowData as $key => $array){
+            $dataSistema[] = array_combine($meses, array_slice($array, 1));
         }
+        $data = array_combine($sistemas, $dataSistema);
 
         return $data;
     }
 
     public function epeConsSubsist($file, $sheet)
     {
-        $indices = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
         $sistemas = ['Sistemas Isolados', 'Norte', 'Nordeste', 'Sudeste/Centro-Oeste', 'Sul'];
 
-        $format = function($n){
-            if (!is_null($n)){
-                return number_format($n, 3, ',', '.');
-            }};
+        $rowData = array_slice($this->util->import(6, $sheet, $file, 9999, 0), 8, 5);
 
-        $rowTotal = $this->util->import(6, $sheet, $file, 9999, 0);
-        $formatTot = array_map($format, array_slice($rowTotal, 1, 13));
-        $data['Total'] = array_combine($indices, $formatTot);
+        foreach ($rowData as $key => $array){
+            $dataSistema[] = array_combine($meses, array_slice($array, 1));
+        }
+        $data = array_combine($sistemas, $dataSistema);
 
-        foreach ($sistemas as $key => $sistema)
-        {
-            $row = $this->util->import(6, $sheet, $file, 9999, 8 + $key);
-            $format = array_map($format, array_slice($row, 1, 13));
-            $data[$sistema] = array_combine($indices, $format);
+        return $data;
+    }
+
+    public function epe_historico($file, $sheet)
+    {
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
+
+        $data = [];
+        $indice = '';
+        $ano = '';
+        $rowData = $this->util->import(7, $sheet, $file);
+
+        foreach ($rowData as $key => $info) {
+
+            if (!array_values($rowData[$key])[1]) {
+                if ($rowData[$key]['total_residencial'] &&
+                    stripos($rowData[$key]['total_residencial'], '*') === false)
+                {
+                    $indice = $rowData[$key]['total_residencial'];
+                }
+            }
+            if (!$rowData[$key]['total_residencial'] &&
+                $rowData[$key]['total_residencial'] !== '') {
+                if (is_numeric(preg_replace('(\*)', '', array_values($rowData[$key])[1])))
+                {
+                    $ano = preg_replace('(\*)', '', array_values($rowData[$key])[1]);
+                }
+            }
+
+            if (array_values($rowData[$key])[2] &&
+                array_values($rowData[$key])[2] !== 'FEV') {
+                $data[$ano][$indice][$rowData[$key]['total_residencial']] = array_combine($meses, $this->util->formata_valores(array_slice($rowData[$key], 1, 13)));
+            }
+            unset($data['']);
         }
 
         return $data;

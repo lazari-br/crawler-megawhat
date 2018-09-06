@@ -10,7 +10,7 @@ use ArangoDBClient\ClientException as ArangoClientException;
 use ArangoDBClient\ServerException as ArangoServerException;
 
 
-class NewaveDecompService extends Controller
+class NewaveDecompService
 {
 
     private $arangoDb;

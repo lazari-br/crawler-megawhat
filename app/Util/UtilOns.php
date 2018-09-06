@@ -25,7 +25,7 @@ class UtilOns extends Util
         $this->regexOns = $regexOns;
     }
 
-    public function acessoCdre()
+    public function download_arquivo_zip()
     {
         $url_base = 'https://cdre.ons.org.br';
 
@@ -56,13 +56,9 @@ class UtilOns extends Util
 
         $crawler = $browser->driver->getPageSource();
         $url = $this->regexOns->getPmo($crawler);
-dump($url);
-//        $browser->driver->navigate($url_base.$url)
+
         $browser->visit($url_base . $url)
-                ->pause(2500)
-                ->dump();
-die;
-        return $browser->driver->getPageSource();
+                ->pause(2500);
     }
 
     public function validaMes($info)
@@ -78,4 +74,38 @@ die;
             }
         }
     }
+
+
+    public function explode_ug_pmo($linha, $key)
+    {
+        if (stripos($linha[$key]['UG'], ' a ') !== false) {
+            $primeiroA = (float)trim(explode('a', $linha[$key]['UG'])[0]);
+            $ultimoA = (float)trim(explode('a', $linha[$key]['UG'])[1]);
+
+            $linha[$key]['UG'] = [];
+            for ($i = 0; $i <= $ultimoA - $primeiroA; $i++) {
+                $linha[$key]['UG'][$i] = $primeiroA + $i;
+            }
+
+        }
+        elseif (stripos($linha[$key]['UG'], ' e ') !== false) {
+             $linha[$key]['UG'] = explode(' e ', $linha[$key]['UG']);
+        }
+        elseif (stripos($linha[$key]['UG'], '-') !== false) {
+             $linha[$key]['UG'] = explode('-', $linha[$key]['UG']);
+        }
+
+        return $linha;
+    }
+
+    public function encontra_arquivo($dir, $arq)
+    {
+        $files = scandir($dir);
+        foreach ($files as $key => $file) {
+            if (stripos($file, $arq) !== false) {
+                return $file;
+            }
+        }
+    }
+
 }

@@ -11,19 +11,28 @@ namespace Crawler\Excel;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Excel;
 use Crawler\Util\Util;
+use Crawler\Util\UtilOns;
+use Crawler\Regex\RegexOns;
+
 
 class ImportExcelOns
 {
     private $excel;
     private $startRow;
     private $util;
+    private $utilOns;
+    private $regexOns;
 
 
     public function __construct(Excel $excel,
-                                Util $util)
+                                RegexOns $regexOns,
+                                Util $util,
+                                UtilOns $utilOns)
     {
         $this->excel = $excel;
         $this->util = $util;
+        $this->utilOns = $utilOns;
+        $this->regexOns = $regexOns;
     }
 
     public function setConfigStartRow($row)
@@ -104,67 +113,38 @@ class ImportExcelOns
             return explode("_", $n);
         };
 
-        $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste', 'Total'];
+        $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste/Centro-Oeste', 'Total'];
 
         $rowDataNorte = $this->util->import(8, $sheet, $file, 8, 0);
-        $norte = array_column(array_map($explode, array_slice(array_keys($rowDataNorte), 2)), "0");
+        $norte = array_slice($rowDataNorte[0], 2);
 
         $rowDataSul = $this->util->import(19, $sheet, $file, 19, 0);
-        $sul = array_column(array_map($explode, array_slice(array_keys($rowDataSul), 2)), "0");
-
-        $valNorte = array_sum($norte);
-        $valSul = array_sum($sul);
-
-        $total = $valSul + $valNorte;
+        $sul =  array_slice($rowDataSul[0], 2);
 
         $rowData = array_merge($norte, $sul);
-        $rowData[] = $total;
 
-        $dataFormat = array_map(function ($x) {
-            return number_format($x, 3, ",", ".");
-        }, $rowData);
-
-        $data = array_combine($index, $dataFormat);
+        $array =[];
+        foreach ($rowData as $key => $item) {
+            $array[] = number_format($this->regexOns->getNumEnaImport($key), 3, '.', ',');
+        }
+        $array[4] = array_sum($array);
+        $data = array_combine($index, $array);
 
         return $data;
     }
-
 
     public function onsEnaSemanalPerc($file, $sheet)
     {
-
-        $valida = function ($n) {
-            if (is_numeric($n)) {
-                ;
-                return $n;
-            }
-        };
-
         $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste'];
 
         $rowDataNorte = $this->util->import(12, $sheet, $file, 12, 0);
-        $dataNorteEdit = array_keys($rowDataNorte);
-
         $rowDataSul = $this->util->import(23, $sheet, $file, 23, 0);
-        $dataSulEdit = array_keys($rowDataSul);
 
-        $validaDataNorte = array_map($valida, $dataNorteEdit);
-        $validaDataSul = array_map($valida, $dataSulEdit);
-
-        $dataNorte = array_filter($validaDataNorte);
-        $dataSul = array_filter($validaDataSul);
-
-        $rowData = array_merge($dataNorte, $dataSul);
-
-        $dataFormat = array_map(function ($x) {
-            return number_format($x, 20, ",", ".");
-        }, $rowData);
-
-        $data = array_combine($index, $dataFormat);
+        $rowData = array_keys(array_merge($rowDataNorte[0], $rowDataSul[0]));
+        $data = array_combine($index, [$rowData[3], $rowData[5], $rowData[8], $rowData[10]]);
 
         return $data;
     }
-
 
     public function onsEna($file, $sheet, $startRow, $takeRows, $date)
     {
@@ -1041,7 +1021,6 @@ class ImportExcelOns
             });
 
         return $data;
-        die;
     }
 
 
@@ -1147,47 +1126,98 @@ class ImportExcelOns
 
     public function pmoUsina($file, $sheet)
     {
-        $indice = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Leilão', 'UG', '(MW)', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
-        $indiceMescla = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Leilão'];
+        $indice = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Leilão', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
 
-        $rowData = $this->util->import(2, $sheet, $file, 172, 0);
+        $rowData = $this->util->import(2, $sheet, $file);
+        $usina = strtoupper(array_keys($rowData[0])[1]);
 
-        foreach ($rowData as $key=>$item)
-        {
-            $data[] = array_combine($indice, array_values($item));
+        $indiceMescla = ['0', $usina, 'situacao', 'potencia_total_mw', 'leilao'];
+
+        if ($rowData[0]['0'] === null) {
+            $this->pmoUsina_sem_subsistema($rowData, $indice, $indiceMescla);
         }
 
-        foreach ($data as $chave=>$conteudo)
-        {
-            foreach ( $indiceMescla as $item){
-                $data = $this->util->celulaMesclada($data, $item, 1);
+        $data = [];
+        foreach ($rowData as $key=>$item) {
+            foreach ($indiceMescla as $mescla) {
+                $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
             }
+            $linha[$key] = array_combine($indice, $rowData[$key]);
+
+            $linha = $this->utilOns->explode_ug_pmo($linha, $key);
+
+            $data[$linha[$key]['Subsistema']][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] = [
+                'UG' => $linha[$key]['UG'],
+                'MW' => $linha[$key]['MW'],
+                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+            ];
         }
+
+        return $data;
+    }
+
+    public function pmoUsina_sem_subsistema($rowData, $indice, $indiceMescla)
+    {
+        unset($indice[0]);
+        unset($indiceMescla[0]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            unset($rowData[$key]['0']);
+            foreach ($indiceMescla as $mescla) {
+                $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
+            }
+            $linha[$key] = array_combine($indice, $rowData[$key]);
+
+            $linha = $this->utilOns->explode_ug_pmo($linha, $key);
+
+            $data[$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] = [
+                'UG' => $linha[$key]['UG'],
+                'MW' => $linha[$key]['MW'],
+                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+            ];
+        }
+
         return $data;
     }
 
     public function pmoUsinaComb($file, $sheet)
     {
-        $indice = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)','Combustível', 'Leilão', 'UG', '(MW)', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
-        $indiceMescla = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)', 'Combustível', 'Leilão'];
+        $indice = ['Subsistema', 'Usina', 'Situação', 'Potência Total (MW)','Combustível', 'Leilão', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
 
-        $this->setConfigStartRow(2);
-        $rowData = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(172);
-            })
-            ->toArray();
+        $rowData = $this->util->import(2, $sheet, $file);
+        $usina = strtoupper(array_keys($rowData[0])[1]);
 
-        foreach ($rowData as $key=>$item)
-        {
-            $data[] = array_combine($indice, array_values($item));
-        }
+        $indiceMescla = ['0', $usina, 'situacao', 'potencia_total_mw', 'leilao'];
 
-        foreach ($data as $chave=>$conteudo)
-        {
-            foreach ( $indiceMescla as $item){
-                $data = $this->util->celulaMesclada($data, $item, 1);
+        $data = [];
+        foreach ($rowData as $key=>$item) {
+            foreach ($indiceMescla as $mescla) {
+                $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
             }
+            $linha[$key] = array_combine($indice, $rowData[$key]);
+
+            if (stripos($linha[$key]['UG'], ' a ') !== false) {
+                $primeiro = explode(' a ', $linha[$key]['UG'])[0];
+                $ultimo = explode(' a ', $linha[$key]['UG'])[1];
+
+                $linha[$key]['UG'] = [];
+                for ($i = $primeiro; $i <= $ultimo; $i++) {
+                    $linha[$key]['UG'][$i] = $linha[$key]['MW'];
+                }
+            }
+
+            $data[$linha[$key]['Subsistema']][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] = [
+                'UG' => $linha[$key]['UG'],
+                'MW' => $linha[$key]['MW'],
+                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+            ];
         }
 
         return $data;
@@ -1196,7 +1226,7 @@ class ImportExcelOns
     public function pmoNaoSimuladasExistente($file, $sheet)
     {
         $date = Carbon::now()->format('Y');
-
+;
         $indice = ['Tipo',
                    'Subsistema',
                    'Usina'];
@@ -1280,6 +1310,163 @@ class ImportExcelOns
             $dataValor['Valores'][$date + 4] = array_combine($meses, array_slice($value, 53, 12));
 
             $data[$value['usina']] = array_merge($usina, $dataValor);
+        }
+        return $data;
+    }
+
+    public function historico_pmo_ate_2015($file, $sheets)
+    {
+        $data = [];
+        foreach ($sheets as $num => $sheet)
+        {
+            $rowData = $this->util->import(2, $sheet, $file);
+            $usina = array_keys($rowData[0])[1];
+
+            if (in_array('combustivel', array_keys($rowData[0]), true) !== false) {
+                $indice = ['Usina', 'Situação', 'Potência Total (MW)', 'Combustível', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Diferença em relação ao anterior'];
+                $indiceMescla = [$usina, 'situacao', 'potencia_total_mw', 'combustivel'];
+            } else {
+                $indice = ['Usina', 'Situação', 'Potência Total (MW)', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Diferença em relação ao anterior'];
+                $indiceMescla = [$usina, 'situacao', 'potencia_total_mw'];
+            }
+
+            foreach ($rowData as $key => $item) {
+                if ($rowData[$key]['mw'])
+                {
+                    unset($rowData[$key]['0']);
+                    foreach ($indiceMescla as $mescla) {
+                        $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
+                    }
+                    $linha[$key] = array_combine($indice, $rowData[$key]);
+
+                    $linha = $this->utilOns->explode_ug_pmo($linha, $key);
+
+                    if (isset($rowData[$key]['Combustivel'])) {
+                        $data[strtoupper($usina)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Combustível']][$key] =
+                            [
+                                'UG' => $linha[$key]['UG'],
+                                'MW' => $linha[$key]['MW'],
+                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                            ];
+                    } else {
+                        $data[strtoupper($usina.$sheet)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$key] =
+                            [
+                                'UG' => $linha[$key]['UG'],
+                                'MW' => $linha[$key]['MW'],
+                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                            ];
+                    }
+                }
+            }
+        }
+        return $data;
+    }
+
+    public function historico_pmo_ate_2017($file, $sheets)
+    {
+        $data = [];
+        foreach ($sheets as $num => $sheet)
+        {
+            $rowData = $this->util->import(2, $sheet, $file);
+            $usina = array_keys($rowData[0])[1];
+
+            if (in_array('combustivel', array_keys($rowData[0]), true) !== false) {
+                $indice = ['Usina', 'Situação', 'Potência Total (MW)', 'Combustível', 'Leilão', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Diferença em relação ao anterior'];
+                $indiceMescla = [$usina, 'situacao', 'potencia_total_mw', 'combustivel', 'leilao'];
+                $num_indice = 9;
+            } else {
+                $indice = ['Usina', 'Situação', 'Potência Total (MW)', 'Leilão', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Diferença em relação ao anterior'];
+                $indiceMescla = [$usina, 'situacao', 'potencia_total_mw', 'leilao'];
+                $num_indice = 8;
+            }
+
+            foreach ($rowData as $key => $item) {
+                if ($rowData[$key]['mw'])
+                {
+                    unset($rowData[$key]['0']);
+                    $rowData[$key] = array_slice($rowData[$key], 0, $num_indice);
+                    foreach ($indiceMescla as $mescla) {
+                        $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
+                    }
+
+                    $linha[$key] = array_combine($indice, $rowData[$key]);
+
+                    $linha = $this->utilOns->explode_ug_pmo($linha, $key);
+
+                    if (isset($rowData[$key]['Combustivel'])) {
+                        $data[strtoupper($usina)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Combustível']][$linha[$key]['Leilão']][$key] =
+                            [
+                                'UG' => $linha[$key]['UG'],
+                                'MW' => $linha[$key]['MW'],
+                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                            ];
+                    }
+                    else {
+                        $data[strtoupper($usina.$sheet)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] =
+                            [
+                                'UG' => $linha[$key]['UG'],
+                                'MW' => $linha[$key]['MW'],
+                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                            ];
+                    }
+                }
+            }
+        }
+        return $data;
+    }
+
+    public function historico_pmo_pos_2017($file, $sheets)
+    {
+        $data = [];
+        foreach ($sheets as $num => $sheet)
+        {
+            $rowData = $this->util->import(2, $sheet, $file);
+            $usina = array_keys($rowData[0])[1];
+
+            if (in_array('combustivel', array_keys($rowData[0]), true) !== false) {
+                $indice = ['Usina', 'Situação', 'Potência Total (MW)', 'Leilão', 'Combustível', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
+                $indiceMescla = [$usina, 'situacao', 'potencia_total_mw', 'leilao', 'combustivel'];
+            } else {
+                $indice = ['Usina', 'Situação', 'Potência Total (MW)', 'Leilão', 'UG', 'MW', 'Data de entrada em operação - DMSE', 'Data de entrada em operação - PMO', 'Diferença em relação ao anterior'];
+                $indiceMescla = [$usina, 'situacao', 'potencia_total_mw', 'leilao'];
+            }
+
+            foreach ($rowData as $key => $item) {
+                if ($rowData[$key]['mw'])
+                {
+                    unset($rowData[$key]['0']);
+                    foreach ($indiceMescla as $mescla) {
+                        $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
+                    }
+                    $linha[$key] = array_combine($indice, $rowData[$key]);
+
+                    $linha = $this->utilOns->explode_ug_pmo($linha, $key);
+                    if (isset($rowData[$key]['Combustivel'])) {
+                        $data[strtoupper($usina)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Combustível']][$linha[$key]['Leilão']][$key] =
+                            [
+                                'UG' => $linha[$key]['UG'],
+                                'MW' => $linha[$key]['MW'],
+                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                            ];
+                    }
+                    else {
+                        $data[strtoupper($usina.$sheet)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] =
+                            [
+                                'UG' => $linha[$key]['UG'],
+                                'MW' => $linha[$key]['MW'],
+                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                            ];
+                    }
+                }
+            }
         }
         return $data;
     }

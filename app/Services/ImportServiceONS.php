@@ -9,14 +9,18 @@
 namespace Crawler\Services;
 
 use Crawler\Excel\ImportExcelOns;
+use Crawler\Util\Util;
 
 class ImportServiceONS
 {
     private $importExcelOns;
-    
-    public function __construct(ImportExcelOns $importExcelOns)
+    private $util;
+
+    public function __construct(ImportExcelOns $importExcelOns,
+                                Util $util)
     {
         $this->importExcelOns = $importExcelOns;
+        $this->util = $util;
     }
     
     public function importSdroSemanal($url_download, $date_format, $carbon)
@@ -235,10 +239,10 @@ class ImportServiceONS
     public function importPmoCdre($pathNsimulada, $pathCronograma)
     {
         //Memorial de Cálculo das Usinas Não Simuladas Individualmente
-        $sheet = 2; // Existentes_CCEE
-        $resultado['data']['Não Simulada']['Existentes'] = $this->importExcelOns->pmoNaoSimuladasExistente($pathNsimulada, $sheet);
-        $sheet = 3; // Expansão (440-2011 e 476-2012)
-        $resultado['data']['Não Simulada']['Expansão'] = $this->importExcelOns->pmoNaoSimuladasExpansao($pathNsimulada, $sheet);
+//        $sheet = 2; // Existentes_CCEE
+//        $resultado['data']['Não Simulada']['Existentes'] = $this->importExcelOns->pmoNaoSimuladasExistente($pathNsimulada, $sheet);
+//        $sheet = 3; // Expansão (440-2011 e 476-2012)
+//        $resultado['data']['Não Simulada']['Expansão'] = $this->importExcelOns->pmoNaoSimuladasExpansao($pathNsimulada, $sheet);
 
         //Cronograma_Reunião_DMSE
         $resultado ['data']['Não Simulada']['Expansão']['UFV'] = $this->importExcelOns->pmoUsina($pathCronograma, 0);
@@ -250,5 +254,51 @@ class ImportServiceONS
 
         return $resultado;
     }
-    
+
+    public function historico_pmo_cronograma($file, $ano, $mes)
+    {
+        $data = [];
+        if ($ano === 2010) {
+            if ($mes === 'Março') {
+                $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2]);
+            } elseif ($mes === 'Maio' || $mes === 'Setembro' || $mes === 'Outubro') {
+                $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3]);
+            } else {
+                $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3, 4]);
+            }
+        }
+        elseif ($ano === 2013 && $mes ==='Setembro') {
+            $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3]);
+        }
+        else {
+            if ($ano < 2014) {
+                $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3, 4]);
+            } elseif ($ano === 2014) {
+                if ($this->util->mesMesXXportugues($mes) < 11) {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3, 4]);
+                } elseif ($mes === 'Novembro') {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3]);
+                } elseif ($mes === 'Dezembro') {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3, 4, 5]);
+                }
+            } elseif ($ano === 2015) {
+                if ($this->util->mesMesXXportugues($mes) <= 8) {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2015($file, [0, 1, 2, 3, 4, 5]);
+                } else {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2017($file, [0, 1, 2, 3, 4, 5]);
+                }
+            }
+            elseif ($ano > 2015 && $ano < 2017) {
+                $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2017($file, [0, 1, 2, 3, 4, 5]);
+            } elseif ($ano >= 2017) {
+                if ($mes === 'Janeiro') {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_ate_2017($file, [0, 1, 2, 3, 4, 5]);
+                } else {
+                    $data[$ano][$mes] = $this->importExcelOns->historico_pmo_pos_2017($file, [0, 1, 2, 3, 4, 5]);
+                }
+            }
+        }
+        return $data[$ano][$mes];
+    }
+
 }

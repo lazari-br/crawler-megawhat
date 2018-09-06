@@ -325,7 +325,7 @@ class AneelController extends Controller
 
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
-            $this->util->enviaBanco('aneel', 'audiencias_publicas', $date_format, $download_nota_tecnica);
+            $this->util->enviaArangoDB('aneel', 'audiencias_publicas', $date_format, $download_nota_tecnica);
 
             return response()->json(
                 [
@@ -378,14 +378,14 @@ class AneelController extends Controller
             $download[$key] = $this->util->download($fonte, 'pdf');
             $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,$key . '.pdf', $download[$key]);
 
-            $this->util->enviaBanco('aneel', $key, $date, $result);
+            $this->util->enviaArangoDB('aneel', $key, $date, $result);
 
         }
 
         $download_resumo = $this->util->download($resumo, 'xlsx');
         $result['file'] = $this->storageDirectory->saveDirectory('aneel/mensal/'.$date,'resumo_geral.xlsx', $download_resumo);
 
-        $this->util->enviaBanco('aneel', $key, $date, $result);
+        $this->util->enviaArangoDB('aneel', $key, $date, $result);
 
         return response()->json(
             [
@@ -457,7 +457,7 @@ class AneelController extends Controller
 
         }
 
-        $this->util->enviaBanco('aneel', 'usinas', $date, $dados);
+        $this->util->enviaArangoDB('aneel', 'usinas', $date, $dados);
 
       return response()->json(
           [

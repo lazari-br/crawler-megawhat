@@ -68,7 +68,7 @@ class ProtheusController extends Controller
             $data['de_'. $dataInicio. '_até_'. $dataFim][$submercado] = $pld;
         }
 
-        $this->util->enviaBanco('protheus', 'pld', $date, $data);
+        $this->util->enviaArangoDB('protheus', 'pld', $date, $data);
     }
 
 }

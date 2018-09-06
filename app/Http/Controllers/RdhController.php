@@ -51,7 +51,7 @@ class RdhController extends Controller
             $carbon
         );
 
-        $this->util->enviaBanco('rdh', 'rds-diario', $date, $resultado);
+        $this->util->enviaArangoDB('rdh', 'rds-diario', $date, $resultado);
 
         return response()->json([
             'responsabilidade' => 'Buscar os dados de ENA acessados por e-mail',

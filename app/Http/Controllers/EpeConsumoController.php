@@ -40,7 +40,7 @@ class EpeConsumoController extends Controller
     public function getConsumo()
     {
         $carbon = Carbon::now();
-        $date = $carbon->format('m-Y');
+        $date = Carbon::now()->format('Y-m-d');
         $ano = $carbon->format('Y');
 
         $url_base = 'www.epe.gov.br';
@@ -73,7 +73,7 @@ class EpeConsumoController extends Controller
                 $sheet
             );
 
-            $this->util->enviaBanco('epe', 'consumo', $date, $resultado);
+            $this->util->enviaArangoDB('epe', 'consumo', $date, $resultado);
 
         }
         return response()->json([
@@ -82,6 +82,18 @@ class EpeConsumoController extends Controller
             'status' => 'O crawler não encontrou o arquivo especificado!'
         ]);
 
+    }
+
+
+    public function historico_epe()
+    {
+        $date = Carbon::now()->format('Y-m-d');
+
+        $file = '/var/www/html/crawler-megawhat/storage/app/historico/MERCADO MENSAL PARA DOWNLOAD COLADO.xls';
+
+        $dados['mensal']['data'] = $this->importExcelEpe->epe_historico($file, 1);
+
+        $this->util->enviaArangoDB('epe', 'consumo', $date, $dados);
     }
 
 

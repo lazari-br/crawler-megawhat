@@ -44,1885 +44,237 @@ class ImportExcelCcee
         return $this->startRow = config(['excel.import.startRow' => $row]);
     }
 
-    public function cceeConsCGPatMWh($file, $sheet, $startRow, $takeRows, $date)
+    public function dado_porSemanaEpatamar($file, $sheet, $nomeTabela)
     {
         $data = [];
-        $oldSubmercado = '';
-        $oldSemana = '';
-        $oldPatamar = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldSubmercado, &$oldSemana, &$oldPatamar, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['submercado']) ||
-                        empty($rowData['no_semana']) ||
-                        empty($rowData['patamar'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o submercado, semana ou patamar vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $submercado = !empty($rowData['submercado']) ? $rowData['submercado'] : $oldSubmercado;
-                    $semana = !empty($rowData['no_semana']) ? $rowData['no_semana'] : $oldSemana;
-                    $patamar = !empty($rowData['patamar']) ? $rowData['patamar'] : $oldPatamar;
-                    unset($rowData['submercado']);
-                    unset($rowData['no_semana']);
-                    unset($rowData['patamar']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrPatamar = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrPatamar) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-                        }
-                        $arrPatamar[$key] = $total;
-                    });
-
-                    if (isset($data[$submercado][$semana])) {
-                        $data[$submercado][$semana][$patamar] = $arrPatamar;
-                    } elseif (isset($data[$submercado])) {
-                        $data[$submercado][$semana] = [
-                            $patamar => $arrPatamar
-                        ];
-                    } else {
-                        $data[$submercado] = [
-                            $semana => [
-                                $patamar => $arrPatamar
-                            ]
-                        ];
-                    }
-
-                    $oldSubmercado = $submercado;
-                    $oldSemana = $semana;
-                    $oldPatamar = $patamar;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsCGPatMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldSubmercado = '';
-        $oldSemana = '';
-        $oldPatamar = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+        $setInicio = $this->util->import(12, $sheet, $file);
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $nomeTabela)[0];
+        $fim = $this->utilCcee->encontra_tabela($setInicio, $nomeTabela)[1];
 
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldSubmercado, &$oldSemana, &$oldPatamar, &$date, $months) {
-                $rowData = $i->all();
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['submercado']) ||
-                        empty($rowData['no_semana']) ||
-                        empty($rowData['patamar'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o submercado, semana ou patamar vazio');
-                } else {
-                    unset($rowData[0]);
-                    $submercado = !empty($rowData['submercado']) ? $rowData['submercado'] : $oldSubmercado;
-                    $semana = !empty($rowData['no_semana']) ? $rowData['no_semana'] : $oldSemana;
-                    $patamar = !empty($rowData['patamar']) ? $rowData['patamar'] : $oldPatamar;
-                    unset($rowData['submercado']);
-                    unset($rowData['no_semana']);
-                    unset($rowData['patamar']);
+        $linha_inicial = (float)$inicio + 14;
+        $linha_final = (float)$fim + 13;
+        $rowData = $this->util->import($linha_inicial, $sheet, $file, $linha_final);
 
-                    $arr = array_combine($months, $rowData);
-                    $arrPatamar = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrPatamar) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
+        foreach ($rowData as $key => $info) {
+            unset ($rowData[$key]['0']);
 
-                        }
+            $rowData = $this->util->celulaMesclada($rowData, 'submercado', 1);
+            $rowData = $this->util->celulaMesclada($rowData, 'no_semana', 1);
 
-                        $arrPatamar[$key] = $total;
-                    });
-
-                    if (isset($data[$submercado][$semana])) {
-                        $data[$submercado][$semana][$patamar] = $arrPatamar;
-                    } elseif (isset($data[$submercado])) {
-                        $data[$submercado][$semana] = [
-                            $patamar => $arrPatamar
-                        ];
-                    } else {
-                        $data[$submercado] = [
-                            $semana => [
-                                $patamar => $arrPatamar
-                            ]
-                        ];
-                    }
-
-                    $oldSubmercado = $submercado;
-                    $oldSemana = $semana;
-                    $oldPatamar = $patamar;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsCGClMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldClasse = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldClasse, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['classe_do_agente'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a classe vazia');
-                } else {
-                    unset($rowData[0]);
-                    $classe = !empty($rowData['classe_do_agente']) ? $rowData['classe_do_agente'] : $oldClasse;
-                    unset($rowData['classe_do_agente']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$classe])) {
-                        $data[$classe] = $arrClasse;
-                    } elseif (isset($data[$classe])) {
-                        $data[$classe] = $arrClasse;
-                    } else {
-                        $data[$classe] = $arrClasse;
-                    }
-
-                    $oldClasse = $classe;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsCGClMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldClasse = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldClasse, &$date, $months) {
-                $rowData = $i->all();
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['classe_do_agente'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a classe vazia');
-
-                } else {
-                    unset($rowData[0]);
-                    $classe = !empty($rowData['classe_do_agente']) ? $rowData['classe_do_agente'] : $oldClasse;
-                    unset($rowData['classe_do_agente']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$classe])) {
-                        $data[$classe] = $arrClasse;
-                    } else {
-                        $data[$classe] = $arrClasse;
-                    }
-
-                    $oldClasse = $classe;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsCGAmbMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldAmbiente = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldAmbiente, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ambiente'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ambiente vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ambiente = !empty($rowData['ambiente']) ? $rowData['ambiente'] : $oldAmbiente;
-                    unset($rowData['ambiente']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrAmbiente = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrAmbiente) {
-                        $total = $value;
-
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-
-                        }
-
-                        $arrAmbiente[$key] = $total;
-                    });
-
-                    if (isset($data[$ambiente])) {
-                        $data[$ambiente] = $arrAmbiente;
-                    } else {
-                        $data[$ambiente] = $arrAmbiente;
-
-                    }
-
-                    $oldAmbiente = $ambiente;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsCGAmbMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldAmbiente = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldAmbiente, &$date, $months) {
-                $rowData = $i->all();
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ambiente'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ambiente vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ambiente = !empty($rowData['ambiente']) ? $rowData['ambiente'] : $oldAmbiente;
-                    unset($rowData['ambiente']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrAmbiente = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrAmbiente) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-
-                        }
-
-                        $arrAmbiente[$key] = $total;
-                    });
-
-                    if (isset($data[$ambiente])) {
-                        $data[$ambiente] = $arrAmbiente;
-                    } else {
-                        $data[$ambiente] = $arrAmbiente;
-
-                    }
-
-                    $oldAmbiente = $ambiente;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsLivCGRamoMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldRamo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldRamo, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ramo_de_atividade'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ramo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ramo = !empty($rowData['ramo_de_atividade']) ? $rowData['ramo_de_atividade'] : $oldRamo;
-                    unset($rowData['ramo_de_atividade']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrRamo = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrRamo) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-                        }
-
-                        $arrRamo[$key] = $total;
-                    });
-
-                    if (isset($data[$ramo])) {
-                        $data[$ramo] = $arrRamo;
-                    } else {
-                        $data[$ramo] = $arrRamo;
-
-                    }
-
-                    $oldRamo = $ramo;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeConsLivCGRamoMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldRamo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldRamo, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ramo_de_atividade'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ramo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ramo = !empty($rowData['ramo_de_atividade']) ? $rowData['ramo_de_atividade'] : $oldRamo;
-                    unset($rowData['ramo_de_atividade']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrRamo = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrRamo) {
-                        $total = $value;
-
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-                        }
-                        $arrRamo[$key] = $total;
-                    });
-
-                    if (isset($data[$ramo])) {
-                        $data[$ramo] = $arrRamo;
-                    } else {
-                        $data[$ramo] = $arrRamo;
-
-                    }
-
-                    $oldRamo = $ramo;
-                }
-            });
-        return $data;
-    }
-
-
-    public function cceeConsGerCGMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldSubmercado = '';
-        $oldSemana = '';
-        $oldPatamar = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldSubmercado, &$oldSemana, &$oldPatamar, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['submercado']) ||
-                        empty($rowData['no_semana']) ||
-                        empty($rowData['patamar'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o submercado, semana ou patamar vazio');
-                } else {
-                    unset($rowData[0]);
-                    $submercado = !empty($rowData['submercado']) ? $rowData['submercado'] : $oldSubmercado;
-                    $semana = !empty($rowData['no_semana']) ? $rowData['no_semana'] : $oldSemana;
-                    $patamar = !empty($rowData['patamar']) ? $rowData['patamar'] : $oldPatamar;
-                    unset($rowData['submercado']);
-                    unset($rowData['no_semana']);
-                    unset($rowData['patamar']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrPatamar = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrPatamar) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-
-                        }
-
-                        $arrPatamar[$key] = $total;
-                    });
-
-                    if (isset($data[$submercado][$semana])) {
-                        $data[$submercado][$semana][$patamar] = $arrPatamar;
-                    } elseif (isset($data[$submercado])) {
-                        $data[$submercado][$semana] = [
-                            $patamar => $arrPatamar
-                        ];
-                    } else {
-                        $data[$submercado] = [
-                            $semana => [
-                                $patamar => $arrPatamar
-                            ]
-                        ];
-                    }
-
-                    $oldSubmercado = $submercado;
-                    $oldSemana = $semana;
-                    $oldPatamar = $patamar;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsGerCGMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldSubmercado = '';
-        $oldSemana = '';
-        $oldPatamar = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldSubmercado, &$oldSemana, &$oldPatamar, &$date, $months) {
-                $rowData = $i->all();
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['submercado']) ||
-                        empty($rowData['no_semana']) ||
-                        empty($rowData['patamar'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o submercado, semana ou patamar vazio');
-                } else {
-                    unset($rowData[0]);
-                    $submercado = !empty($rowData['submercado']) ? $rowData['submercado'] : $oldSubmercado;
-                    $semana = !empty($rowData['no_semana']) ? $rowData['no_semana'] : $oldSemana;
-                    $patamar = !empty($rowData['patamar']) ? $rowData['patamar'] : $oldPatamar;
-                    unset($rowData['submercado']);
-                    unset($rowData['no_semana']);
-                    unset($rowData['patamar']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrPatamar = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrPatamar) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-
-                        }
-
-                        $arrPatamar[$key] = $total;
-                    });
-
-                    if (isset($data[$submercado][$semana])) {
-                        $data[$submercado][$semana][$patamar] = $arrPatamar;
-                    } elseif (isset($data[$submercado])) {
-                        $data[$submercado][$semana] = [
-                            $patamar => $arrPatamar
-                        ];
-                    } else {
-                        $data[$submercado] = [
-                            $semana => [
-                                $patamar => $arrPatamar
-                            ]
-                        ];
-                    }
-
-                    $oldSubmercado = $submercado;
-                    $oldSemana = $semana;
-                    $oldPatamar = $patamar;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeConsLivPCRamoMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldRamo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldRamo, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ramo_de_atividade'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ramo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ramo = !empty($rowData['ramo_de_atividade']) ? $rowData['ramo_de_atividade'] : $oldRamo;
-                    unset($rowData['ramo_de_atividade']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrRamo = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrRamo) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-                        }
-
-                        $arrRamo[$key] = $total;
-                    });
-
-                    if (isset($data[$ramo])) {
-                        $data[$ramo] = $arrRamo;
-                    } else {
-                        $data[$ramo] = $arrRamo;
-
-                    }
-
-                    $oldRamo = $ramo;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeConsLivPCRamoMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldRamo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldRamo, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ramo_de_atividade'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ramo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ramo = !empty($rowData['ramo_de_atividade']) ? $rowData['ramo_de_atividade'] : $oldRamo;
-                    unset($rowData['ramo_de_atividade']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrRamo = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrRamo) {
-                        $total = $value;
-
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-                        }
-                        $arrRamo[$key] = $total;
-                    });
-
-                    if (isset($data[$ramo])) {
-                        $data[$ramo] = $arrRamo;
-                    } else {
-                        $data[$ramo] = $arrRamo;
-
-                    }
-
-                    $oldRamo = $ramo;
-                }
-            });
-        return $data;
-    }
-
-
-    public function cceeConsAutoProdPCRamoMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldRamo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldRamo, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ramo_de_atividade'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ramo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ramo = !empty($rowData['ramo_de_atividade']) ? $rowData['ramo_de_atividade'] : $oldRamo;
-                    unset($rowData['ramo_de_atividade']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrRamo = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrRamo) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-                        }
-
-                        $arrRamo[$key] = $total;
-                    });
-
-                    if (isset($data[$ramo])) {
-                        $data[$ramo] = $arrRamo;
-                    } else {
-                        $data[$ramo] = $arrRamo;
-
-                    }
-
-                    $oldRamo = $ramo;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeConsAutoProdPCRamoMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldRamo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldRamo, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['ramo_de_atividade'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o ramo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $ramo = !empty($rowData['ramo_de_atividade']) ? $rowData['ramo_de_atividade'] : $oldRamo;
-                    unset($rowData['ramo_de_atividade']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrRamo = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrRamo) {
-                        $total = $value;
-
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-                        }
-                        $arrRamo[$key] = $total;
-                    });
-
-                    if (isset($data[$ramo])) {
-                        $data[$ramo] = $arrRamo;
-                    } else {
-                        $data[$ramo] = $arrRamo;
-
-                    }
-
-                    $oldRamo = $ramo;
-                }
-            });
-        return $data;
-    }
-
-    public function cceeGerCGFontMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldFonte = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldFonte, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['fonte_de_geracao'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a fonte vazia');
-
-                } else {
-                    unset($rowData[0]);
-                    $fonte = !empty($rowData['fonte_de_geracao']) ? $rowData['fonte_de_geracao'] : $oldFonte;
-                    unset($rowData['fonte_de_geracao']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrFonte = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrFonte) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-                        }
-
-                        $arrFonte[$key] = $total;
-                    });
-
-                    if (isset($data[$fonte])) {
-                        $data[$fonte] = $arrFonte;
-                    } else {
-                        $data[$fonte] = $arrFonte;
-
-                    }
-
-                    $oldFonte = $fonte;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeGerCGFontMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldFonte = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldFonte, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['fonte_de_geracao'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a fonte vazia');
-
-                } else {
-                    unset($rowData[0]);
-                    $fonte = !empty($rowData['fonte_de_geracao']) ? $rowData['fonte_de_geracao'] : $oldFonte;
-                    unset($rowData['fonte_de_geracao']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrFonte = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrFonte) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-                        }
-
-                        $arrFonte[$key] = $total;
-                    });
-
-                    if (isset($data[$fonte])) {
-                        $data[$fonte] = $arrFonte;
-                    } else {
-                        $data[$fonte] = $arrFonte;
-
-                    }
-
-                    $oldFonte = $fonte;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeGerCGPatMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldSubmercado = '';
-        $oldSemana = '';
-        $oldPatamar = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldSubmercado, &$oldSemana, &$oldPatamar, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['submercado']) ||
-                        empty($rowData['no_semana']) ||
-                        empty($rowData['patamar'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o submercado, semana ou patamar vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $submercado = !empty($rowData['submercado']) ? $rowData['submercado'] : $oldSubmercado;
-                    $semana = !empty($rowData['no_semana']) ? $rowData['no_semana'] : $oldSemana;
-                    $patamar = !empty($rowData['patamar']) ? $rowData['patamar'] : $oldPatamar;
-                    unset($rowData['submercado']);
-                    unset($rowData['no_semana']);
-                    unset($rowData['patamar']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrPatamar = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrPatamar) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-
-                        }
-
-                        $arrPatamar[$key] = $total;
-                    });
-
-                    if (isset($data[$submercado][$semana])) {
-                        $data[$submercado][$semana][$patamar] = $arrPatamar;
-                    } elseif (isset($data[$submercado])) {
-                        $data[$submercado][$semana] = [
-                            $patamar => $arrPatamar
-                        ];
-                    } else {
-                        $data[$submercado] = [
-                            $semana => [
-                                $patamar => $arrPatamar
-                            ]
-                        ];
-                    }
-
-                    $oldSubmercado = $submercado;
-                    $oldSemana = $semana;
-                    $oldPatamar = $patamar;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeGerCGPatMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldSubmercado = '';
-        $oldSemana = '';
-        $oldPatamar = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldSubmercado, &$oldSemana, &$oldPatamar, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['submercado']) ||
-                        empty($rowData['no_semana']) ||
-                        empty($rowData['patamar'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o submercado, semana ou patamar vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $submercado = !empty($rowData['submercado']) ? $rowData['submercado'] : $oldSubmercado;
-                    $semana = !empty($rowData['no_semana']) ? $rowData['no_semana'] : $oldSemana;
-                    $patamar = !empty($rowData['patamar']) ? $rowData['patamar'] : $oldPatamar;
-                    unset($rowData['submercado']);
-                    unset($rowData['no_semana']);
-                    unset($rowData['patamar']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrPatamar = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrPatamar) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-
-                        }
-
-                        $arrPatamar[$key] = $total;
-                    });
-
-                    if (isset($data[$submercado][$semana])) {
-                        $data[$submercado][$semana][$patamar] = $arrPatamar;
-                    } elseif (isset($data[$submercado])) {
-                        $data[$submercado][$semana] = [
-                            $patamar => $arrPatamar
-                        ];
-                    } else {
-                        $data[$submercado] = [
-                            $semana => [
-                                $patamar => $arrPatamar
-                            ]
-                        ];
-                    }
-
-                    $oldSubmercado = $submercado;
-                    $oldSemana = $semana;
-                    $oldPatamar = $patamar;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeNumAgClasse($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldClasse= '';
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldClasse, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['classe'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a classe vazia');
-
-                } else {
-                    unset($rowData[0]);
-                    $classe = !empty($rowData['classe']) ? $rowData['classe'] : $oldClasse;
-                    unset($rowData['classe']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 0, ",", ".");
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$classe])) {
-                        $data[$classe] = $arrClasse;
-                    } else {
-                        $data[$classe] = $arrClasse;
-
-                    }
-
-                    $oldClasse= $classe;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeMontCGTipoMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldTipo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldTipo, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['tipo_de_contrato'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o tipo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $tipo = !empty($rowData['tipo_de_contrato']) ? $rowData['tipo_de_contrato'] : $oldTipo;
-                    unset($rowData['tipo_de_contrato']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrTipo = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrTipo) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-                        }
-
-                        $arrTipo[$key] = $total;
-                    });
-
-                    if (isset($data[$tipo])) {
-                        $data[$tipo] = $arrTipo;
-                    } else {
-                        $data[$tipo] = $arrTipo
-                        ;
-
-                    }
-
-                    $oldTipo= $tipo;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeMontCGTipoMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldTipo = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldTipo, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                    empty($rowData['tipo_de_contrato'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com o tipo vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $tipo = !empty($rowData['tipo_de_contrato']) ? $rowData['tipo_de_contrato'] : $oldTipo;
-                    unset($rowData['tipo_de_contrato']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrTipo = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrTipo) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-                        }
-
-                        $arrTipo[$key] = $total;
-                    });
-
-                    if (isset($data[$tipo])) {
-                        $data[$tipo] = $arrTipo;
-                    } else {
-                        $data[$tipo] = $arrTipo
-                        ;
-
-                    }
-
-                    $oldTipo= $tipo;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeMontCGClasseCompVendMWh($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldVend = '';
-        $oldComp = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldVend, &$oldComp, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['classe_do_vendedor']) ||
-                        empty($rowData['classe_do_comprador'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a classe do comprador ou do vendedor vazia');
-
-                } else {
-                    unset($rowData[0]);
-                    $vend = !empty($rowData['classe_do_vendedor']) ? $rowData['classe_do_vendedor'] : $oldVend;
-                    $comp = !empty($rowData['classe_do_comprador']) ? $rowData['classe_do_comprador'] : $oldComp;
-                    unset($rowData['classe_do_vendedor']);
-                    unset($rowData['classe_do_comprador']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$vend][$comp])) {
-                        $data[$vend][$comp]= $arrClasse;
-                    } elseif (isset($data[$vend])) {
-                        $data[$vend][$comp] = $arrClasse;
-                    } else {
-                        $data[$vend] = [$comp => $arrClasse
-                        ];
-                    }
-
-                    $oldVend = $vend;
-                    $oldComp = $comp;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeMontCGClasseCompVendMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldVend = '';
-        $oldComp = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldVend, &$oldComp, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['classe_do_vendedor']) ||
-                        empty($rowData['classe_do_comprador'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a classe do comprador ou do vendedor vazia');
-
-                } else {
-                    unset($rowData[0]);
-                    $vend = !empty($rowData['classe_do_vendedor']) ? $rowData['classe_do_vendedor'] : $oldVend;
-                    $comp = !empty($rowData['classe_do_comprador']) ? $rowData['classe_do_comprador'] : $oldComp;
-                    unset($rowData['classe_do_vendedor']);
-                    unset($rowData['classe_do_comprador']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$vend][$comp])) {
-                        $data[$vend][$comp]= $arrClasse;
-                    } elseif (isset($data[$vend])) {
-                        $data[$vend][$comp] = $arrClasse;
-                    } else {
-                        $data[$vend] = [$comp => $arrClasse
-                        ];
-                    }
-
-                    $oldVend = $vend;
-                    $oldComp = $comp;
-                }
-            });
-
-        return $data;
-    }
-
-
-    public function cceeIncentContrCompMWh($file, $sheet, $startRow, $takeRows, $date)   //Problema na leitura das %s dos índices (' aparece em algumas células e em outras não)
-    {
-        $data = [];
-        $oldModalidade = '';
-        $oldPercent = '';
-        $oldClasse = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldModalidade, &$oldPercent, &$oldClasse, &$date, $months, $daysInMonths) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['modalidade_energia']) ||
-                        empty($rowData['percentual_de_desconto_do_vendedor']) ||
-                        empty($rowData['classe_comprador'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com modalidade, percentual ou classe vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $modalidade = !empty($rowData['modalidade_energia']) ? $rowData['modalidade_energia'] : $oldModalidade;
-                    $percent= !empty($rowData['percentual_de_desconto_do_vendedor']) ? $rowData['percentual_de_desconto_do_vendedor'] : $oldPercent;
-                    $classe = !empty($rowData['classe_comprador']) ? $rowData['classe_comprador'] : $oldClasse;
-                    unset($rowData['modalidade_energia']);
-                    unset($rowData['percentual_de_desconto_do_vendedor']);
-                    unset($rowData['classe_comprador']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, $daysInMonths, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total_round = round($value * 24 * $daysInMonths[$key], 3);
-                            $total = number_format($total_round, 3, ",", ".");
-
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$modalidade][$percent])) {
-                        $data[$modalidade][$percent][$classe] = $arrClasse;
-                    } elseif (isset($data[$modalidade])) {
-                        $data[$modalidade][$percent] = [
-                            $classe => $arrClasse
-                        ];
-                    } else {
-                        $data[$modalidade] = [
-                            $percent=> [
-                                $classe => $arrClasse
-                            ]
-                        ];
-                    }
-
-                    $oldModalidade = $modalidade;
-                    $oldPercent = $percent;
-                    $oldClasse= $classe;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeIncentContrCompMWm($file, $sheet, $startRow, $takeRows, $date)
-    {
-        $data = [];
-        $oldModalidade = '';
-        $oldPercent = '';
-        $oldClasse = '';
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldModalidade, &$oldPercent, &$oldClasse, &$date, $months) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['modalidade_energia']) ||
-                        empty($rowData['percentual_de_desconto_do_vendedor']) ||
-                        empty($rowData['classe_comprador'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com modalidade, percentual ou classe vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $modalidade = !empty($rowData['modalidade_energia']) ? $rowData['modalidade_energia'] : $oldModalidade;
-                    $percent= !empty($rowData['percentual_de_desconto_do_vendedor']) ? $rowData['percentual_de_desconto_do_vendedor'] : $oldPercent;
-                    $classe = !empty($rowData['classe_comprador']) ? $rowData['classe_comprador'] : $oldClasse;
-                    unset($rowData['modalidade_energia']);
-                    unset($rowData['percentual_de_desconto_do_vendedor']);
-                    unset($rowData['classe_comprador']);
-
-                    $arr = array_combine($months, $rowData);
-                    $arrClasse = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrClasse) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 3, ",", ".");
-
-                        }
-
-                        $arrClasse[$key] = $total;
-                    });
-
-                    if (isset($data[$modalidade][$percent])) {
-                        $data[$modalidade][$percent][$classe] = $arrClasse;
-                    } elseif (isset($data[$modalidade])) {
-                        $data[$modalidade][$percent] = [
-                            $classe => $arrClasse
-                        ];
-                    } else {
-                        $data[$modalidade] = [
-                            $percent=> [
-                                $classe => $arrClasse
-                            ]
-                        ];
-                    }
-
-                    $oldModalidade = $modalidade;
-                    $oldPercent = $percent;
-                    $oldClasse= $classe;
-                }
-            });
-
-        return $data;
-    }
-
-    public function cceeEss($file, $sheet)
-    {
-
-        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        $receb = $this->util->import(15, $sheet, $file, 20);
-
-        foreach ($receb as $key => $linha) {
-            if ($linha['componente'] === 'Total') {
-                $rowData = array_slice($linha, 2);
+            if (count($rowData[$key]) !== 15){
+                return response()->json(['Error:' => 'A importação da tabela'.$nomeTabela.' não foi realizada corretamente!']);
             }
+
+            $data[$rowData[$key]['submercado']][$rowData[$key]['no_semana']][$rowData[$key]['patamar']]['MWh'] =
+                $this->util->formata_valores_mwh(array_combine($months, array_slice($rowData[$key], 3, 12)));
+            $data[$rowData[$key]['submercado']][$rowData[$key]['no_semana']][$rowData[$key]['patamar']]['MWmed'] =
+                $this->util->formata_valores(array_combine($months, array_slice($rowData[$key], 3, 12)));
         }
-        array_walk($rowData, function ($value, $key) use (&$arrData) {
-            $total = $value;
-            if (!is_null($value)) {
-                $total = number_format($value, 2, ",", ".");
-            }
-            $arrData[$key] = $total;
-        });
-        $data = array_combine($months, $arrData);
 
         return $data;
     }
 
-
-    public function cceeEssPorMWh($file, $sheet, $date)
+    public function dado_padrao($file, $sheet, $nome_tabela, $primeira_coluna)
     {
-
+        $data = [];
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $year = $date->year;
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
 
-        $receb = $this->util->import(15, $sheet, $file, 20);
 
-        foreach ($receb as $key => $linha) {
-            if ($linha['componente'] === 'Total') {
-                $dataReceb = array_slice($receb[0], 2);
+        $setInicio = $this->util->import(12, $sheet, $file);
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[0];
+        $fim = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[1];
+
+        $rowData = $this->util->import($inicio + 14, $sheet, $file, $fim + 13);
+        foreach ($rowData as $chave => $linha) {
+            if ($rowData[$chave][$primeira_coluna] === null){
+                break;
+            }
+
+            if (count($rowData[$chave]) !== 14){
+                return response()->json(['Error:' => 'A importação da tabela '.$nome_tabela.' não foi realizada corretamente!']);
+            }
+
+            $valores = array_combine($months, array_slice($linha, 2, 12));
+            $arrClasse['MWh'] = $this->util->formata_valores_mwh($valores);
+            $arrClasse['MWmed'] = $this->util->formata_valores($valores);
+            $data[$rowData[$chave][$primeira_coluna]] = $arrClasse;
+        }
+
+        return $data;
+    }
+
+    public function dado_sem_conta($file, $sheet, $nome_tabela, $primeira_coluna)
+    {
+        $data = [];
+        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        $setInicio = $this->util->import(12, $sheet, $file);
+
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[0];
+        $fim = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[1];
+
+        $rowData = $this->util->import($inicio + 14, $sheet, $file, $fim + 13);
+        foreach ($rowData as $chave => $linha) {
+            if (count($rowData[$chave]) !== 14){
+                return response()->json(['Error:' => 'A importação da tabela '.$nome_tabela.' não foi realizada corretamente!']);
+            }
+
+            $valores = array_combine($months, array_slice($linha, 2, 12));
+            $arrClasse = $this->util->formata_valores($valores);
+            $data[$rowData[$chave][$primeira_coluna]] = $arrClasse;
+        }
+
+        return $data;
+    }
+
+    public function montante_de_contrato_por_comprador_e_vendedor($file, $sheet, $nomeTabela)
+    {
+        $data = [];
+        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        $setInicio = $this->util->import(12, $sheet, $file);
+
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $nomeTabela)[0];
+        $fim = $this->utilCcee->encontra_tabela($setInicio, $nomeTabela)[1];
+
+        $linhaInicial = $inicio + 14;
+        $linhaFinal = $fim + 13;
+
+        $rowData = $this->util->import($linhaInicial, $sheet, $file, $linhaFinal);
+        foreach ($rowData as $chave => $item){
+            if ($rowData[$chave]['classe_do_vendedor'] === null){
+                $rowData = $this->util->celulaMesclada($rowData, 'classe_do_vendedor', 1);
+            }
+
+            if (count($rowData[$chave]) !== 15){
+                return response()->json(['Error:' => 'A importação da tabela '.$nomeTabela.' não foi realizada corretamente!']);
+            }
+
+            $valores = array_combine($months, array_slice($rowData[$chave], 3));
+            $arrClasse = $this->util->formata_valores_mwh($valores);
+            $data['Vendedor'][$rowData[$chave]['classe_do_vendedor']]['Comprador'][$rowData[$chave]['classe_do_comprador']] = $arrClasse;
+        }
+
+        return $data;
+    }
+
+    public function montante_de_contrato_por_modalidade_e_desconto($file, $sheet, $nome_tabela)
+    {
+        $data = [];
+        $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        $setInicio = $this->util->import(12, $sheet, $file);
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[0];
+        $fim = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[1];
+
+        $linha_inicial = $inicio + 14;
+        $linha_final = $fim + 13;
+        $rowData = $this->util->import($linha_inicial, $sheet, $file, $linha_final);
+        foreach ($rowData as $chave => $linha)
+        {
+            if (is_numeric($rowData[$chave]['percentual_de_desconto_do_vendedor'])) {
+                $rowData[$chave]['percentual_de_desconto_do_vendedor'] = $rowData[$chave]['percentual_de_desconto_do_vendedor'] * 100 . '%';
+            }
+            elseif (!$rowData[$chave]['percentual_de_desconto_do_vendedor']) {
+                $rowData = $this->util->celulaMesclada($rowData, 'percentual_de_desconto_do_vendedor', 1);
+            }
+            elseif (!$rowData[$chave]['modalidade_energia']) {
+                $rowData = $this->util->celulaMesclada($rowData, 'modalidade_energia', 1);
             }
         }
 
-        $cons = $this->util->import(527, $sheet, $file, 527);
-        $rowCons = array_slice($cons[0], 2);
-        $complemento = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
-        $rowDataCons = array_slice(array_merge($rowCons, $complemento), 0, 12);
+        foreach ($rowData as $keys => $info){
 
-        $dataMWh = array_map(function($x, $y){
-            if (!is_null($x) && !is_null($y)) {
-                return (24*$x*$y);
+            if (count($rowData[$keys]) !== 16){
+                return response()->json(['Error:' => 'A importação da tabela '.$nome_tabela.' não foi realizada corretamente!']);
             }
-        },
-            $rowDataCons, $daysInMonths);
 
-        $func = function ($n) {
-            if (!is_null($n)) {
-
-                return (1 / ($n));
-            }};
-
-        $dataCons = array_map($func, $dataMWh);
-        $rowData = array_map(function($x, $y){return number_format(($x*$y), 15, ",", ".");},$dataCons, $dataReceb);
-        $data = array_combine($months, $rowData);
+            $valores = array_combine($months, array_slice($rowData[$keys], 4));
+            $array = $this->util->formata_valores_mwh($valores);
+            $data[$rowData[$keys]['modalidade_energia']][$rowData[$keys]['percentual_de_desconto_do_vendedor']] = $array;
+        }
 
         return $data;
     }
 
-
-
-    public function cceeEer($file, $sheet)
+    public function ess($file, $sheet, $primeira_tabela, $segunda_tabela)
     {
-
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-        $valor = $this->util->import(162, $sheet, $file, 162, 0);
-        $rowData = array_slice($valor[0], 2);
+        $data = [];
+        $dividendo = [];
+        $divisor = [];
+        $rowData = $this->util->import(12, $sheet, $file);
 
-        array_walk($rowData, function ($value, $key) use (&$arrData) {
-            $total = $value;
-            if (!is_null($value)) {
-                $total = number_format($value, 2, ",", ".");
+        $inicio1 = (float)$this->utilCcee->encontra_tabela($rowData, $primeira_tabela)[0];
+        $fim1 = (float)$this->utilCcee->encontra_tabela($rowData, $primeira_tabela)[1];
+        $inicio2 = (float)$this->utilCcee->encontra_tabela($rowData, $segunda_tabela)[0];
+        $fim2 = (float)$this->utilCcee->encontra_tabela($rowData, $segunda_tabela)[1];
+
+        $rowDividendo = $this->util->import($inicio1 + 14, $sheet, $file, $fim1 + 12);
+        foreach ($rowDividendo as $linha){
+            $dividendo = array_combine($months, array_slice($linha, 2));
+        }
+
+        $rowDivisor = $this->util->import($inicio2 + 14, $sheet, $file, $fim2 + 12);
+        foreach ($rowDivisor as $linha){
+            $divisor = array_combine($months, array_slice($linha, 4));
+        }
+
+        foreach ($months as $chave => $mes) {
+            if ($dividendo[$mes] && $divisor[$mes]) {
+                $data[$mes] = number_format($dividendo[$mes] / $divisor[$mes], 2, ',', '.');
+            } else {
+                $data[$mes] = null;
             }
-            $arrData[$key] = $total;
-        });
+        }
+        $resultado['R$/MWh'] = $data;
+        $resultado['R$'] = $this->util->formata_valores($dividendo);
 
-        $data = array_combine($months, $arrData);
-
-        return $data;
+        return $resultado;
     }
 
 
-    public function cceeEerPorMWh($file, $sheet, $date)
+    public function eer($file, $sheet, $primeira_tabela, $segunda_tabela)
     {
-
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        $year = $date->year;
-        $daysInMonths = [
-            'Janeiro' => 31,
-            'Fevereiro' => Carbon::createFromFormat('m/Y', '02/' . $year)->daysInMonth,
-            'Março' => 31,
-            'Abril' => 30,
-            'Maio' => 31,
-            'Junho' => 30,
-            'Julho' => 31,
-            'Agosto' => 31,
-            'Setembro' => 30,
-            'Outubro' => 31,
-            'Novembro' => 30,
-            'Dezembro' => 31
-        ];
 
-        $custo = $this->util->import(162, $sheet, $file, 162, 0);
-        $dataCusto = array_slice($custo, 2);
+        $data = [];
+        $rowData = $this->util->import(12, $sheet, $file);
 
-        $energ = $this->util->import(172, $sheet, $file, 172, 0);
-        $rowDataEnerg = array_slice($energ, 2);
+        $inicio1 = (float)$this->utilCcee->encontra_tabela($rowData, $primeira_tabela)[0];
+        $inicio2 = (float)$this->utilCcee->encontra_tabela($rowData, $segunda_tabela)[0];
 
-        $dataMWh = array_map(function($x, $y){
-            if (!is_null($x) && !is_null($y)) {
-                return (24*$x*$y);
+        $rowDividendo = $this->util->import($inicio1 + 14, $sheet, $file, $inicio1 + 14);
+        $dividendo = array_combine($months, array_slice($rowDividendo[0], 2));
+
+        $rowDivisor = $this->util->import($inicio2 + 14, $sheet, $file, $inicio2 + 14);
+        $divisor = array_combine($months, array_slice($rowDivisor[0], 2));
+
+        foreach ($months as $chave => $mes) {
+            if ($dividendo[$mes] && $divisor[$mes]) {
+                $data[$mes] = number_format($dividendo[$mes] / $divisor[$mes], 2, ',', '.');
+            } else {
+                $data[$mes] = null;
             }
-        },
-            $rowDataEnerg, $daysInMonths);
+        }
+        $resultado['R$/MWh']  = $data;
+        $resultado['R$'] = $this->util->formata_valores($dividendo);
 
-        $func = function ($n){
-            if (!is_null($n)) {
-                return (1 / $n);
-            }};
-
-        $dataEnerg = array_map($func, $dataMWh);
-
-        $rowData = array_map(function($x, $y){
-            return number_format(($x*$y), 15, ",", ".");
-        },
-        $dataCusto, $dataEnerg);
-        $data = array_combine($months, $rowData);
-
-        return $data;
+        return $resultado;
     }
 
 
-    public function cceeUsinas($file, $sheet)
+    public function geracao_usinas($file, $sheet, $tabela)
     {
         $indice = ['Código do Ativo',
                    'Sigla do Ativo',
@@ -1945,63 +297,222 @@ class ImportExcelCcee
                    'Sigla' ,
                    'Nome Empresarial'];
 
-        $meses = ['Janeiro',
-                  'Fevereiro',
-                  'Março',
-                  'Abril',
-                  'Maio',
-                  'Junho',
-                  'Julho',
-                  'Agosto',
-                  'Setembro',
-                  'Outubro',
-                  'Novembro',
-                  'Dezembro'];
-
-        $patamar = ['Leve', 'Médio', 'Pesado'];
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
         $data = [];
         $data212 = [];
-        $fim = 0;
-        $rowData = array_slice($this->util->import(23, $sheet, $file, 9999, 0), 1);
+        $dataExcecoes = [];
+        $exclusoes = [];
+        $setInicio = $this->util->import(12, $sheet, $file);
+
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $tabela)[0];
+        $rowData = $this->util->import($inicio + 14, $sheet, $file);
+
+        unset ($rowData[0]);
         foreach ($rowData as $key => $item)
         {
-            if ($rowData[$key]['patamar'] === null){
-                $fim = $key;
-                break;
-            }
-            $data[$key] = array_combine($indice, array_slice($item, 1, 20));
+            $data[$key] = array_combine($indice, array_slice($rowData[$key], 1, 20));
 
-            if ($data[$key]['Código da parcela da Usina'] === null) {
-                unset ($data[$key]);
+            if (!$data[$key]['Código do Ativo']) {
+                $data = $this->util->celulaMesclada($data, 'Código do Ativo', 1);
+                $data = $this->util->celulaMesclada($data, 'Sigla do Ativo', 1);
+                $data = $this->util->celulaMesclada($data, 'CEG do empreendimento', 1);
             }
-            if (fmod($key, 3) === 0.0) {
-                $data = $this->util->celulaMesclada($data, 'Código do Ativo', 3);
-                $data = $this->util->celulaMesclada($data, 'Sigla do Ativo', 3);
-                $data = $this->util->celulaMesclada($data, 'CEG do empreendimento', 3);
-            }
+
+           $data = $this->utilCcee->add_secundarios($data, $key);
         }
 
-        $rowDataGeracao = $this->util->import(24, $sheet, $file, (24 + $fim) - 1, 0);
-        foreach ($rowDataGeracao as $keys => $conteudo) {
-            $dataGeracao[$keys] = array_combine($meses, array_slice($conteudo, 1, 12));
-        }
-        foreach ($data as $chave => $info)
+        $rowDataGeracao = $this->util->import($inicio + 15, $sheet, $file);
+        foreach ($rowDataGeracao as $keys => $conteudo)
         {
-            $data[$chave]['Geração no centro de gravidade (v) por Patamar - MWh (Gp,j)'] = array_combine($patamar, [$dataGeracao[$chave + 0],
-                                                                                                                    $dataGeracao[$chave + 1],
-                                                                                                                    $dataGeracao[$chave + 2]]);
-            if ($data[$chave]['Código do Ativo'] === 244.0 ||
-                $data[$chave]['Código do Ativo'] === 331.0 ||
-                $data[$chave]['Código do Ativo'] === 543.0) {
-                $data[$chave] = $this->utilCcee->addExcecoesUsinas($data[$chave]);
+            $dataGeracao = $this->util->formata_valores(array_slice($conteudo, 1, 12));
+            $data[$keys + 1]['Geração no centro de gravidade (v) - MWh (Gp,j)'] = array_combine($meses, $dataGeracao);
+
+            if ($data[$keys + 1]['Código do Ativo'] === 244.0 ||
+                $data[$keys + 1]['Código do Ativo'] === 331.0 ||
+                $data[$keys + 1]['Código do Ativo'] === 543.0) {
+                $dataExcecoes[] = $this->utilCcee->addExcecoesUsinas($data[$keys + 1]);
+                $exclusoes[] = $keys + 1;
             }
-            elseif ($data[$chave]['Código do Ativo'] === 212.0) {
-                $data212[] = $data[$chave];
-                unset ($data[$chave]);
+            elseif ($data[$keys + 1]['Código do Ativo'] === 212.0) {
+                $data212[] = $data[$keys + 1];
+                $exclusoes[] = $keys + 1;
+            }
+            foreach ($exclusoes as $exclusao) {
+                if ($keys + 1 === $exclusao) {
+                    unset($data[$keys +1]);
+                }
+            }
+
+        }
+
+        $dataExcecoes[] = $this->utilCcee->addExcecao212($data212);
+        $excecoes = $this->utilCcee->junta_excecoes($dataExcecoes);
+
+        $data = array_merge($data, $excecoes);
+
+        return $data;
+    }
+
+    public function geracao_usinas_2015($file, $sheet, $tabela) // comentar dados retirados do CEG na function add_secundarios da class UtilCcee
+    {
+        $indice = ['Código do Ativo',
+                   'Sigla do Ativo',
+                   'Código da parcela da Usina',
+                   'Parcela de Usina',
+                   'Tipo de Despacho',
+                   'Participante do Rateio de Perdas',
+                   'Fonte de Energia Primária',
+                   'Submercado',
+                   'UF',
+                   'Característica da Parcela',
+                   'Participante do MRE',
+                   'Participante do Regima de Cotas',
+                   '% de Desconto',
+                   'Capacidade da Usina (i) - MW (CAP_T)',
+                   'Garantia Física (ii) MW médio (GF)',
+                   'Fator de Operação Comercial (iv) (F_COMERCIALp,j)',
+                   'Código Perfil',
+                   'Sigla' ,
+                   'Nome Empresarial'];
+
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        $data = [];
+        $data212 = [];
+        $dataExcecoes = [];
+        $exclusoes = [];
+        $setInicio = $this->util->import(12, $sheet, $file);
+
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $tabela)[0];
+        $rowData = $this->util->import($inicio + 14, $sheet, $file);
+
+        unset ($rowData[0]);
+        foreach ($rowData as $key => $item)
+        {
+            $data[$key] = array_combine($indice, array_slice($rowData[$key], 1, 19));
+
+            if (!$data[$key]['Código do Ativo']) {
+                $data = $this->util->celulaMesclada($data, 'Código do Ativo', 1);
+                $data = $this->util->celulaMesclada($data, 'Sigla do Ativo', 1);
+            }
+
+           $data = $this->utilCcee->add_secundarios_ate_2015($data, $key);
+        }
+
+        $rowDataGeracao = $this->util->import($inicio + 15, $sheet, $file);
+        foreach ($rowDataGeracao as $keys => $conteudo)
+        {
+            $dataGeracao = $this->util->formata_valores(array_slice($conteudo, 1, 12));
+            $data[$keys + 1]['Geração no centro de gravidade (v) - MWh (Gp,j)'] = array_combine($meses, $dataGeracao);
+
+            if ($data[$keys + 1]['Código do Ativo'] === 244.0 ||
+                $data[$keys + 1]['Código do Ativo'] === 331.0) {
+                $dataExcecoes[] = $this->utilCcee->addExcecoesUsinas($data[$keys + 1]);
+                $exclusoes[] = $keys + 1;
+            }
+            if ($data[$keys + 1]['Código do Ativo'] === 212.0) {
+                $data212[] = $data[$keys + 1];
+                $exclusoes[] = $keys + 1;
+            }
+
+            foreach ($exclusoes as $exclusao) {
+                if ($keys + 1 === $exclusao) {
+                    unset($data[$keys +1]);
+                }
             }
         }
-        $data[$fim] = $this->utilCcee->addExcecao212($data212, $chave, $fim);
+
+        $dataExcecoes[] = $this->utilCcee->addExcecao212_2015($data212);
+        $excecoes = $this->utilCcee->junta_excecoes($dataExcecoes);
+
+        $data = array_merge($data, $excecoes);
+        return $data;
+    }
+
+    public function historico_infoMercado_2013e2014($file, $sheet, $tabela)
+    {
+        $indice = ['Código do Ativo',
+                   'Sigla do Ativo',
+                   'Código da parcela da Usina',
+                   'Parcela de Usina',
+                   'Tipo de Despacho',
+                   'Participante do Rateio de Perdas',
+                   'Fonte de Energia Primária',
+                   'Submercado',
+                   'UF',
+                   'Característica da Parcela',
+                   'Participante do MRE',
+                   'Participante do Regima de Cotas',
+                   'Capacidade da Usina (i) - MW (CAP_T)',
+                   'Garantia Física (ii) MW médio (GF)',
+                   'Fator de Operação Comercial (iv) (F_COMERCIALp,j)',
+                   'Código Perfil',
+                   'Sigla' ,
+                   'Nome Empresarial'];
+
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        $data = [];
+        $data212 = [];
+        $dataExcecoes = [];
+        $exclusoes = [];
+        $setInicio = $this->util->import(12, $sheet, $file);
+
+        $inicio = $this->utilCcee->encontra_tabela($setInicio, $tabela)[0];
+        $rowData = $this->util->import($inicio + 14, $sheet, $file);
+
+        unset ($rowData[0]);
+        foreach ($rowData as $key => $item)
+        {
+            $data[$key] = array_combine($indice, array_slice($rowData[$key], 1, 18));
+
+            if (!$data[$key]['Parcela de Usina']) {
+                unset($data[$key]);
+            }
+            if (isset($data[$key])) {
+                if (!$data[$key]['Código do Ativo']) {
+                    $data = $this->util->celulaMesclada($data, 'Código do Ativo', 3);
+                    $data = $this->util->celulaMesclada($data, 'Sigla do Ativo', 3);
+                }
+
+            $data = $this->utilCcee->add_secundarios_ate_2015($data, $key);
+            }
+        }
+
+        $rowDataGeracao = $this->util->import($inicio + 15, $sheet, $file);
+        foreach ($rowDataGeracao as $keys => $conteudo)
+        {
+            if ($rowDataGeracao[$keys]['0']) {
+                $dataGeracao[$keys] = array_slice($conteudo, 1, 12);
+
+                if (fmod($keys, 3) === 2.0) {
+                    $data[$keys - 1]['Geração no centro de gravidade (v) - MWh (Gp,j)'] = array_combine($meses,
+                        $this->util->formata_valores_mwh(array_slice($this->utilCcee->calcula_geracao_consolidada(
+                            $rowDataGeracao[$keys - 2], $rowDataGeracao[$keys - 1], $rowDataGeracao[$keys]), 1)));
+
+                    if ($data[$keys - 1]['Código do Ativo'] === 244.0 ||
+                        $data[$keys - 1]['Código do Ativo'] === 331.0) {
+                        $dataExcecoes[] = $this->utilCcee->addExcecoesUsinas($data[$keys - 1]);
+                        $exclusoes[] = $keys - 1;
+                    }
+                    if ($data[$keys - 1]['Código do Ativo'] === 212.0) {
+                        $data212[] = $data[$keys - 1];
+                        $exclusoes[] = $keys - 1;
+                    }
+
+                    foreach ($exclusoes as $exclusao) {
+                        if ($keys - 1 === $exclusao) {
+                            unset($data[$keys - 1]);
+                        }
+                    }
+                }
+            }
+        }
+        $dataExcecoes[] = $this->utilCcee->addExcecao212_2015($data212);
+        $excecoes = $this->utilCcee->junta_excecoes($dataExcecoes);
+
+        $data = array_merge($data, $excecoes);
 
         return $data;
     }
@@ -2059,31 +570,50 @@ class ImportExcelCcee
                     'Entrega escalonada (SIM/NÃO)'
         ];
 
-        $rowData = $this->util->import(10, $sheet, $file, 9999999, 0);
-
         $data = [];
-        foreach ($rowData as $key => $item) {
+        $rowData = $this->util->import(10, $sheet, $file);
+        foreach ($rowData as $key => $item)
+        {
             $data[$key] = array_combine($indices,  array_slice($item, 1));
 
             $inicio = 2000 + $this->regexCcee->getSuprimento($data[$key]['Data do Início de Suprimento']);
             $fim = 2000 + $this->regexCcee->getSuprimento($data[$key]['Data do Fim de Suprimento']);
 
-            $data[$key]['Energia Negociada por Contrato para '. ($inicio) .' (MWh)'] = $this->utilCcee->calculaDias($data[$key]['Data do Início de Suprimento'], $data[$key]['Energia Negociada por Contrato para o Ano A (MWmed)']);
+            $data[$key]['Energia Negociada por Contrato para '. ($inicio) .' (MWh)'] =
+                $this->utilCcee->calcula_anual($data[$key]['Data do Início de Suprimento'], $data[$key]['Energia Negociada por Contrato para o Ano A (MWmed)']);
+            $data[$key]['Energia Negociada por Contrato para '. ($inicio) .' (MWh) po Mês'] =
+                $this->utilCcee->calcula_mensal_anoA($data[$key]['Energia Negociada por Contrato para o Ano A (MWmed)'], $data[$key]['Data do Início de Suprimento']);
 
             for ($i = 1; $i < $fim - $inicio; $i++){
                 $diasAno = $this->util->diasAno($inicio + $i);
                 if ($i < 4) {
-                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] = $data[$key]['Energia Negociada por Contrato para o Ano A + '. $i .' (MWmed)'] * 24 * $diasAno;
+                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] =
+                        $data[$key]['Energia Negociada por Contrato para o Ano A + '. $i .' (MWmed)'] * 24 * $diasAno;
+                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] =
+                        $this->utilCcee->calcula_mensal_primeirosAnos($data[$key]['Energia Negociada por Contrato para o Ano A + '. $i .' (MWmed)'] * 24 * $diasAno);
                 } else {
-                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] = $data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)'] * 24 * $diasAno;
+                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] =
+                        $data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)'] * 24 * $diasAno;
+                    $data[$key]['Energia Negociada por Contrato para '. ($inicio + $i) .' (MWh)'] =
+                        $this->utilCcee->calcula_mensal_primeirosAnos($data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)'] * 24 * $diasAno);
                 }
             }
-            $data[$key]['Energia Negociada por Contrato para '. ($fim) .' (MWh)'] = $this->utilCcee->calculaDias($data[$key]['Data do Fim de Suprimento'], 0, $data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)']);
+            $data[$key]['Energia Negociada por Contrato para '. ($fim) .' (MWh)'] =
+                $this->utilCcee->calcula_anual($data[$key]['Data do Fim de Suprimento'], 0, $data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)']);
+            $data[$key]['Energia Negociada por Contrato para '. ($fim) .' (MWh)'] =
+                $this->utilCcee->calcula_mensal_ultimoAno($data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)'], $data[$key]['Data do Fim de Suprimento']);
 
             $data[$key]['Data de Realização do leilão'] = $this->util->dateEdit($data[$key]['Data de Realização do leilão']);
             $data[$key]['Data do Início de Suprimento'] = $this->util->dateEdit($data[$key]['Data do Início de Suprimento']);
             $data[$key]['Data do Fim de Suprimento'] = $this->util->dateEdit($data[$key]['Data do Fim de Suprimento']);
+
+            unset ($data[$key]['Energia Negociada por Contrato (MWh)']);
+            unset ($data[$key]['Energia Negociada por Contrato para o Ano A + 1 (MWmed)']);
+            unset ($data[$key]['Energia Negociada por Contrato para o Ano A + 2 (MWmed)']);
+            unset ($data[$key]['Energia Negociada por Contrato para o Ano A + 3 (MWmed)']);
+            unset ($data[$key]['Energia Negociada por Contrato para os demais anos (MWmed)']);
         }
+
         return $data;
     }
 

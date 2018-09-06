@@ -80,8 +80,19 @@ class RegexOns extends AbstractRegex
     public function getPmo($page_acesso)
     {
         $regex = '/\<a class="ms-listlink ms-draggable" href="(.*?)"/';
-        $results = $this->pregReplaceString(' ', '%20', $this->regexFirst($regex, $page_acesso, 0));
-        return $this->pregReplaceString('É', '%C3%89', $results);
+        $results = $this->regexAll($regex, $page_acesso, 0, ['url']);
+
+        foreach ($results as $key => $result) {
+            if (stripos($result['url'], '.zip')){
+                return $this->pregReplaceString('É', '%C3%89', $this->pregReplaceString(' ', '%20', $result['url']));
+            }
+        }
+    }
+
+    public function getNumEnaImport($page_acesso)
+    {
+        $regex = '/(.*?)_/';
+        return $this->regexFirst($regex, $page_acesso, 0);
     }
 
 }
