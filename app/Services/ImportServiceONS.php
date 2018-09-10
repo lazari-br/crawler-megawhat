@@ -239,10 +239,10 @@ class ImportServiceONS
     public function importPmoCdre($pathNsimulada, $pathCronograma)
     {
         //Memorial de Cálculo das Usinas Não Simuladas Individualmente
-//        $sheet = 2; // Existentes_CCEE
-//        $resultado['data']['Não Simulada']['Existentes'] = $this->importExcelOns->pmoNaoSimuladasExistente($pathNsimulada, $sheet);
-//        $sheet = 3; // Expansão (440-2011 e 476-2012)
-//        $resultado['data']['Não Simulada']['Expansão'] = $this->importExcelOns->pmoNaoSimuladasExpansao($pathNsimulada, $sheet);
+        $sheet = 2; // Existentes_CCEE
+        $resultado['data']['Não Simulada']['Existentes'] = $this->importExcelOns->pmoNaoSimuladasExistente($pathNsimulada, $sheet);
+        $sheet = 3; // Expansão (440-2011 e 476-2012)
+        $resultado['data']['Não Simulada']['Expansão'] = $this->importExcelOns->pmoNaoSimuladasExpansao($pathNsimulada, $sheet);
 
         //Cronograma_Reunião_DMSE
         $resultado ['data']['Não Simulada']['Expansão']['UFV'] = $this->importExcelOns->pmoUsina($pathCronograma, 0);

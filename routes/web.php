@@ -34,38 +34,36 @@ Route::prefix('ons')->group(function () {
 
     //historico
     //enas
-    Route::get('/historico-enas-mensal', 'OnsController@historico_enas_mensal')->name('historico-enas-mensal');
-    Route::get('/historico-enas-diario', 'OnsController@historico_enas_diario')->name('historico-enas-diario');
-    Route::get('/historico-enas-anual', 'OnsController@historico_enas_anual')->name('historico-enas-anual');
-    Route::get('/historico-enas-semanal', 'OnsController@historico_enas_semanal')->name('historico-enas-semanal');
+    Route::get('/historico-enas-mensal', 'HistoricoOnsController@historico_enas_mensal')->name('historico-enas-mensal');
+    Route::get('/historico-enas-diario', 'HistoricoOnsController@historico_enas_diario')->name('historico-enas-diario');
+    Route::get('/historico-enas-anual', 'HistoricoOnsController@historico_enas_anual')->name('historico-enas-anual');
+    Route::get('/historico-enas-semanal', 'HistoricoOnsController@historico_enas_semanal')->name('historico-enas-semanal');
     //carga
-    Route::get('/historico-carga-anual', 'OnsController@historico_carga_anual')->name('historico-carga-anual');
-    Route::get('/historico-carga-mensal', 'OnsController@historico_carga_mensal')->name('historico--carga-mensal');
-    Route::get('/historico-carga-diario', 'OnsController@historico_carga_diario')->name('historico-carga-diario');
+    Route::get('/historico-carga-anual', 'HistoricoOnsController@historico_carga_anual')->name('historico-carga-anual');
+    Route::get('/historico-carga-mensal', 'HistoricoOnsController@historico_carga_mensal')->name('historico--carga-mensal');
+    Route::get('/historico-carga-diario', 'HistoricoOnsController@historico_carga_diario')->name('historico-carga-diario');
     //intercambio
-    Route::get('/historico-intercambio-diario', 'OnsController@historico_intercambio_diario')->name('historico-intercambio-diario');
+    Route::get('/historico-intercambio-diario', 'HistoricoOnsController@historico_intercambio_diario')->name('historico-intercambio-diario');
     //cmo
-    Route::get('/historico-cmo-semanal', 'OnsController@historico_cmo_semanal')->name('historico-cmo-semanal');
-    Route::get('/historico-cmo-patamar', 'OnsController@historico_cmo_patamar')->name('historico-cmo-patamar');
+    Route::get('/historico-cmo-semanal', 'HistoricoOnsController@hiHistoricostorico_cmo_semanal')->name('historico-cmo-semanal');
+    Route::get('/historico-cmo-patamar', 'HistoricoOnsController@historico_cmo_patamar')->name('historico-cmo-patamar');
     //geracao
-    Route::get('/historico-geracao-diario', 'OnsController@historico_geracao_diario')->name('historico-geracao-diario');
-    Route::get('/historico-geracao-mensal', 'OnsController@historico_geracao_mensal')->name('historico-geracao-mensal');
-    Route::get('/historico-geracao-anual', 'OnsController@historico_geracao_anual')->name('historico-geracao-anual');
+    Route::get('/historico-geracao-diario', 'HistoricoOnsController@historico_geracao_diario')->name('historico-geracao-diario');
+    Route::get('/historico-geracao-mensal', 'HistoricoOnsController@historico_geracao_mensal')->name('historico-geracao-mensal');
+    Route::get('/historico-geracao-anual', 'HistoricoOnsController@historico_geracao_anual')->name('historico-geracao-anual');
     //ear
-    Route::get('/historico-ear-diario', 'OnsController@historico_ear_diario')->name('historico-ear-diario');
-    Route::get('/historico-ear-semanal', 'OnsController@historico_ear_semanal')->name('historico-ear-semanal');
-    Route::get('/historico-ear-mensal', 'OnsController@historico_ear_mensal')->name('historico-ear-mensal');
+    Route::get('/historico-ear-diario', 'HistoricoOnsController@historico_ear_diario')->name('historico-ear-diario');
+    Route::get('/historico-ear-semanal', 'HistoricoOnsController@historico_ear_semanal')->name('historico-ear-semanal');
+    Route::get('/historico-ear-mensal', 'HistoricoOnsController@historico_ear_mensal')->name('historico-ear-mensal');
     //pmo-cdre
-    Route::get('/historico-cdre', 'OnsController@historico_cdre')->name('historico-cdre');
-
-
+    Route::get('/historico-cdre', 'HistoricoOnsController@historico_cdre')->name('historico-cdre');
 
 });
 
 Route::prefix('ccee')->group(function () {
-    Route::get('/historico-semanal', 'CceeController@historicoPrecoSemanal')->name('historico_semanal');
+    Route::get('/pld-semanal', 'CceeController@historicoPrecoSemanal')->name('pld_semanal');
     Route::get('/info-mercado', 'CceeController@getInfoMercadoGeralAndIndividual')->name('info_mercado');
-    Route::get('/historico-mensal', 'CceeController@historicoPrecoMensal')->name('historico_mensal');
+    Route::get('/pld-mensal', 'CceeController@historicoPrecoMensal')->name('pld_mensal');
     Route::get('/decknewave', 'CceeController@deckNewwave')->name('decomp-neawave');
     Route::get('/leilao', 'CceeController@leiloesConsolidado')->name('leilao');
 
@@ -79,7 +77,6 @@ Route::prefix('ccee')->group(function () {
 
 });
 
-
 Route::get('/cde-eletrobras', 'EletroBrasController@getCde')->name('cde-eletrobras');
 Route::get('/epe-consumo', 'EpeConsumoController@getConsumo')->name('epe-consumo');
 Route::get('/rdh', 'RdhController@enaRdh')->name('rdh_ena');
@@ -90,10 +87,10 @@ Route::get('/epe-historico', 'EpeConsumoController@historico_epe')->name('epe-hi
 Route::get('teste', function ($date = '5/6/2018'){
 
 
-        $a = '111,111';
-        $b = '222,222';
 
-        dd((float)preg_replace('(,)', '.', $a));
+    mkdir('/var/www/html/crawler-megawhat/app/AAAAAA');
+
+
 
 
 });
