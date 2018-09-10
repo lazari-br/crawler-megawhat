@@ -41,15 +41,14 @@ Route::prefix('ons')->group(function () {
     //carga
     Route::get('/historico-carga-anual', 'OnsController@historico_carga_anual')->name('historico-carga-anual');
     Route::get('/historico-carga-mensal', 'OnsController@historico_carga_mensal')->name('historico--carga-mensal');
-    Route::get('/historico-carga-semanal', 'OnsController@historico_carga_semanal')->name('historico-carga-semanal');
     Route::get('/historico-carga-diario', 'OnsController@historico_carga_diario')->name('historico-carga-diario');
     //intercambio
     Route::get('/historico-intercambio-diario', 'OnsController@historico_intercambio_diario')->name('historico-intercambio-diario');
     //cmo
     Route::get('/historico-cmo-semanal', 'OnsController@historico_cmo_semanal')->name('historico-cmo-semanal');
+    Route::get('/historico-cmo-patamar', 'OnsController@historico_cmo_patamar')->name('historico-cmo-patamar');
     //geracao
     Route::get('/historico-geracao-diario', 'OnsController@historico_geracao_diario')->name('historico-geracao-diario');
-    Route::get('/historico-geracao-semanal', 'OnsController@historico_geracao_semanal')->name('historico-geracao-semanal');
     Route::get('/historico-geracao-mensal', 'OnsController@historico_geracao_mensal')->name('historico-geracao-mensal');
     Route::get('/historico-geracao-anual', 'OnsController@historico_geracao_anual')->name('historico-geracao-anual');
     //ear
@@ -91,8 +90,10 @@ Route::get('/epe-historico', 'EpeConsumoController@historico_epe')->name('epe-hi
 Route::get('teste', function ($date = '5/6/2018'){
 
 
+        $a = '111,111';
+        $b = '222,222';
 
-       dump(\Carbon\Carbon::now()->format('m y'));
+        dd((float)preg_replace('(,)', '.', $a));
 
 
 });

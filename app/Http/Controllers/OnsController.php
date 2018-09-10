@@ -302,6 +302,8 @@ class OnsController extends Controller
         }
 
         $diretorio = storage_path('app/ons/mensal/pmo/'.$date.'/');
+        Storage::makeDirectory($diretorio);
+
         $pathCronograma = $this->utilOns->encontra_arquivo($diretorio, 'Cronograma');
         $pathNsimulada = $this->utilOns->encontra_arquivo($diretorio, 'Simuladas');
 
@@ -341,6 +343,24 @@ class OnsController extends Controller
                     $data['mensal'][$ano][$mes][trim($linha[1])] = $ena[$key];
                 }
             }
+            foreach ($data['mensal'] as $ano => $meses) {
+                foreach ($meses as $mes => $regioes) {
+                    $mwmed = 0;
+                    $percent = 0;
+                    foreach ($regioes as $regiao => $array) {
+                        foreach ($array as $unidade => $valor) {
+                            if ($unidade === 'mwmed') {
+                                $mwmed += (float)preg_replace('(,)', '.', $data['mensal'][$ano][$mes][$regiao][$unidade]);
+                                $data['mensal'][$ano][$mes]['SIN'][$unidade] = $mwmed;
+                            }  elseif ($unidade === '%mlt') {
+                                $percent += ((float)preg_replace('(,)', '.', $data['mensal'][$ano][$mes][$regiao]['%mlt']) *
+                                    (float)preg_replace('(,)', '.', $data['mensal'][$ano][$mes][$regiao]['mwmed']));
+                            }
+                        }
+                    }
+                    $data['mensal'][$ano][$mes]['SIN']['%mlt'] = (float)$percent / (float)$mwmed;
+                }
+            }
 
             $this->util->enviaArangoDB('ons', 'ena', $date, $data);
         }
@@ -371,6 +391,22 @@ class OnsController extends Controller
 
                     $data['anual'][trim($linha[0])][trim($linha[1])] = $ena[$key];
                 }
+            }
+            foreach ($data['anual'] as $ano => $regioes) {
+                $mwmed = 0;
+                $percent = 0;
+                foreach ($regioes as $regiao=> $array) {
+                    foreach ($array as $unidade => $valor) {
+                        if ($unidade === 'mwmed') {
+                            $mwmed += (float)preg_replace('(,)', '.', $data['anual'][$ano][$regiao][$unidade]);
+                            $data['anual'][$ano]['SIN'][$unidade] = $mwmed;
+                        } elseif ($unidade === '%mlt') {
+                            $percent += ((float)preg_replace('(,)', '.',$data['anual'][$ano][$regiao]['%mlt']) *
+                                (float)preg_replace('(,)', '.', $data['anual'][$ano][$regiao]['mwmed']));
+                        }
+                    }
+                }
+                $data['anual'][$ano]['SIN']['%mlt'] = (float)$percent / (float)$mwmed;
             }
 
             $this->util->enviaArangoDB('ons', 'ena', $date, $data);
@@ -450,7 +486,26 @@ dd($data);
                     $data['diario'][$ano_inicio][$mes_inicio][$dia_inicio][trim($linha[1])] = $ena[$key];
                 }
             }
-
+            foreach ($data['diario'] as $ano => $meses) {
+                foreach ($meses as $mes => $dias) {
+                    foreach ($dias as $dia => $regioes) {
+                        $mwmed = 0;
+                        $percent = 0;
+                        foreach ($regioes as $regiao => $array) {
+                            foreach ($array as $unidade => $valor) {
+                                if ($unidade === 'mwmed') {
+                                    $mwmed += (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao][$unidade]);
+                                    $data['diario'][$ano][$mes][$dia]['SIN'][$unidade] = $mwmed;
+                                } elseif ($unidade === '%mlt') {
+                                    $percent += ((float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['%mlt']) *
+                                        (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['mwmed']));
+                                }
+                            }
+                        }
+                        $data['diario'][$ano][$mes][$dia]['SIN']['%mlt'] = (float)$percent / (float)$mwmed;
+                    }
+                }
+            }
             $this->util->enviaArangoDB('ons', 'ena', $date, $data);
         }
 
@@ -478,6 +533,16 @@ dd($data);
 
                     $data['anual'][$linha[0]][$linha[1]] = $geracao[$key];
                 }
+            }
+            foreach ($data['anual'] as $ano => $regioes) {
+                $mwmed = 0;
+                $gwh = 0;
+                foreach ($regioes as $regiao => $array) {
+                    $mwmed += (float)$data['anual'][$ano][$regiao]['mwmed'];
+                    $gwh += (float)$data['anual'][$ano][$regiao]['gwh'];
+                }
+                $data['anual'][$ano]['SIN']['mwmed'] = $mwmed;
+                $data['anual'][$ano]['SIN']['gwh'] = $gwh;
             }
 
             $this->util->enviaArangoDB('ons', 'carga', $date, $data);
@@ -510,41 +575,22 @@ dd($data);
                     $data['mensal'][$ano][$mes][$linha[1]] = $geracao[$key];
                 }
             }
-
-            $this->util->enviaArangoDB('ons', 'carga', $date, $data);
-        }
-
-        public function historico_carga_semanal()
-        {
-            $data = [];
-            $geracao = [];
-            $date = Carbon::now()->format('Y-m-d');
-
-            $files = [
-                'mwmed' => storage_path('app/historico/ons/carga/geracao_semanal_mwmed.xlsx'),
-                'gwh' => storage_path('app/historico/ons/carga/geracao_semanal_gwh.xlsx')];
-
-            foreach ($files as $unidade => $file)
-            {
-                $rowData = file($file);
-                unset($rowData[0]);
-
-                foreach ($rowData as $key => $info) {
-                    $linha = explode(';', $rowData[$key]);
-
-                    $ano = explode(' de ', $linha[0])[2];
-
-                    $date_inicio = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[3])->format('d/m'));
-                    $date_fim = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[2])->format('d/m'));
-
-                    $geracao[$key][$unidade] = $this->regexOns->convert_str($linha[6]);
-
-                    $data['semanal'][$ano][$date_inicio][$date_fim][$linha[1]] = $geracao[$key];
+            foreach ($data['mensal'] as $ano => $meses) {
+                foreach ($meses as $mes => $regioes) {
+                    $mwmed = 0;
+                    $gwh = 0;
+                    foreach ($regioes as $regiao => $array) {
+                        $mwmed += (float)preg_replace('(,)', '.',$data['mensal'][$ano][$mes][$regiao]['mwmed']);
+                        $gwh += (float)preg_replace('(,)', '.',$data['mensal'][$ano][$mes][$regiao]['gwh']);
+                    }
+                    $data['mensal'][$ano][$mes]['SIN']['mwmed'] = $mwmed;
+                    $data['mensal'][$ano][$mes]['SIN']['gwh'] = $gwh;
                 }
             }
 
             $this->util->enviaArangoDB('ons', 'carga', $date, $data);
         }
+
 
         public function historico_carga_diario()
         {
@@ -571,6 +617,20 @@ dd($data);
                     $geracao[$key][$unidade] = $this->regexOns->convert_str($linha[6]);
 
                     $data['diario'][$ano][$mes][$dia][$linha[1]] = $geracao[$key];
+                }
+            }
+            foreach ($data['diario'] as $ano => $meses) {
+                foreach ($meses as $mes => $dias) {
+                    foreach ($dias as $dia => $regioes) {
+                        $mwmed = 0;
+                        $gwh = 0;
+                        foreach ($regioes as $regiao => $array) {
+                            $mwmed += (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['mwmed']);
+                            $gwh += (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['gwh']);
+                        }
+                        $data['diario'][$ano][$mes][$dia]['SIN']['mwmed'] = $mwmed;
+                        $data['diario'][$ano][$mes][$dia]['SIN']['gwh'] = $gwh;
+                    }
                 }
             }
 
@@ -657,7 +717,7 @@ dd($data);
                     $mes_fim = $this->util->mesMesportugues(Carbon::createFromFormat('m/d/Y', $linha[2])->format('m'));
                     $dia_fim = Carbon::createFromFormat('m/d/Y', $linha[2])->format('d');
 
-                    $data['semanal'][$linha[1]][$ano_inicio]['de '. $dia_inicio. ' de '. $mes_inicio.' ate '. $dia_fim. ' de '.$mes_fim] = $this->regexOns->convert_str($linha[6]);
+                    $data['semanal']['por-subsistema'][$linha[1]][$ano_inicio]['de '. $dia_inicio. ' de '. $mes_inicio.' ate '. $dia_fim. ' de '.$mes_fim] = $this->regexOns->convert_str($linha[6]);
                 }
 
             }
@@ -665,10 +725,42 @@ dd($data);
             $this->util->enviaArangoDB('ons', 'cmo', $date, $data);
         }
 
+        public function historico_cmo_patamar()
+        {
+            $date = Carbon::now()->format('Y-m-d');
+
+            $files = [
+              'nordeste' => storage_path('app/historico/ons/cmo/por-patamar-nordeste.txt'),
+              'norte' => storage_path('app/historico/ons/cmo/por-patamar-norte.txt'),
+              'sudeste_centro-oeste' => storage_path('app/historico/ons/cmo/por-patamar-sudeste.txt'),
+              'sul' => storage_path('app/historico/ons/cmo/por-patamar-sul.txt')
+            ];
+
+            foreach ($files as $regiao => $file) {
+                $rowData = file($file);
+
+                unset($rowData[0]);
+                foreach ($rowData as $key => $item) {
+                    $linha = explode(';', $rowData[$key]);
+
+                    $ano[$key] = Carbon::createFromFormat('m/d/Y', $linha[1])->format('Y');
+                    $inicio[$key] = Carbon::createFromFormat('m/d/Y', $linha[1])->format('d/m');
+                    $fim[$key] = Carbon::createFromFormat('m/d/Y', $linha[2])->format('d/m');
+
+                    $this->data['semanal']['por-patamar'][$ano[$key]][$linha[5]][$key] = [
+                        'inicio' => $inicio[$key],
+                        'fim' => $fim[$key],
+                        'valor' => $this->regexOns->convert_str($linha[7])
+                    ];
+                }
+            }
+
+            $this->util->enviaArangoDB('ons', 'cmo', $date, $this->data);
+        }
+
 
         public function historico_geracao_diario()
         {
-
             $date = Carbon::now()->format('Y-m-d');
 
             $files = [
@@ -699,89 +791,45 @@ dd($data);
             ];
 
             foreach ($files as $fonte => $unidades) {
-                foreach ($unidades as $unidade => $file)
-                {
-                    $rowData = file($file);
-                    unset($rowData[0]);
-                    unset($rowData[1]);
-
-                    foreach ($rowData as $key => $item)
-                    {
-                        $linha[$fonte][$unidade] = explode(';', $rowData[$key]);
-
-                        if ($linha[$fonte][$unidade][0])
-                        {
-                            $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('Y');
-                            $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('m'));
-                            $dia = Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('d');
-
-                            if (stripos(trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])), 'e-') !== false)
-                            {
-                                $numero = (float)explode('e', trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])))[0];
-                                $expoente = (float)explode('e', trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])))[1];
-
-                                $geracao[$key][$fonte][$unidade][$key] = $numero * pow((float)10, (float)$expoente);
-                            }
-                            else {
-                                $geracao[$key][$fonte][$unidade] = trim($this->regexOns->convert_str($linha[$fonte][$unidade][7]));
-                            }
-
-                            $this->data['diario'][$ano][$mes][$dia][$linha[$fonte][$unidade][1]] = $geracao[$key];
-                        }
-                    }
-                }
-            }
-            $this->util->enviaArangoDB('ons', 'geracao', $date, $this->data);
-        }
-
-
-        public function historico_geracao_semanal()
-        {
-            $date = Carbon::now()->format('Y-m-d');
-
-            $files = [
-                'eolica' => [
-                    'gwh' => storage_path('app/historico/ons/geracao/semanal/eolica-semanal-gwh.txt'),
-                    'mwmed' => storage_path('app/historico/ons/geracao/semanal/eolica-semanal-mwmed.txt')
-                ],
-                'hidreletrica' => [
-                    'gwh' => storage_path('app/historico/ons/geracao/semanal/hidreletrica-semanal-gwh.txt'),
-                    'mwmed' => storage_path('app/historico/ons/geracao/semanal/hidreletrica-semanal-mwmed.txt')
-                ],
-                'nuclear' => [
-                    'gwh' => storage_path('app/historico/ons/geracao/semanal/nuclear-semanal-gwh.txt'),
-                    'mwmed' => storage_path('app/historico/ons/geracao/semanal/nuclear-semanal-mwmed.txt')
-                ],
-                'solar' => [
-                    'gwh' => storage_path('app/historico/ons/geracao/semanal/solar-semanal-gwh.txt'),
-                    'mwmed' => storage_path('app/historico/ons/geracao/semanal/solar-semanal-mwmed.txt')
-                ],
-                'termica' => [
-                    'gwh' => storage_path('app/historico/ons/geracao/semanal/termica-semanal-gwh.txt'),
-                    'mwmed' => storage_path('app/historico/ons/geracao/semanal/termica-semanal-mwmed.txt')
-                ],
-                'total' => [
-                    'gwh' => storage_path('app/historico/ons/geracao/semanal/total-semanal-gwh.txt'),
-                    'mwmed' => storage_path('app/historico/ons/geracao/semanal/total-semanal-mwmed.txt')
-                ]
-            ];
-
-            foreach ($files as $fonte => $unidades) {
                 foreach ($unidades as $unidade => $file) {
                     $rowData = file($file);
                     unset($rowData[0]);
                     unset($rowData[1]);
 
-                    foreach ($rowData as $key => $item)
-                    {
-                        $linha = explode(';', $rowData[$key]);
-                        if ($linha[0])
-                        {
-                            $ano_inicio = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('Y');
-                            $date_inicio = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('d/m'));
-                            $date_fim = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[2])->format('d/m'));
+                    foreach ($rowData as $key => $item) {
+                        $linha[$fonte][$unidade] = explode(';', $rowData[$key]);
 
-                            $this->data['semanal'][$linha[1]][$ano_inicio][$date_inicio][$date_fim][$fonte][$unidade] = $this->regexOns->convert_str($linha[7]);
+                        if ($linha[$fonte][$unidade][0]) {
+                            $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('Y');
+                            $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('m'));
+                            $dia = Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('d');
+
+                            if (stripos(trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])), 'e-') !== false) {
+                                $numero = (float)explode('e', trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])))[0];
+                                $expoente = (float)explode('e', trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])))[1];
+
+                                $geracao[$key][$fonte][$linha[$fonte][$unidade][1]][$unidade][$key] = $numero * pow((float)10, (float)$expoente);
+                            } else {
+                                $geracao[$key][$fonte][$linha[$fonte][$unidade][1]][$unidade] = trim($this->regexOns->convert_str($linha[$fonte][$unidade][7]));
+                            }
+
+                            $this->data['diario'][$ano][$mes][$dia] = $geracao[$key];
+                        }
+                    }
+                }
+            }
+            foreach ($this->data['diario'] as $ano => $meses) {
+                foreach ($meses as $mes => $dias) {
+                    foreach ($dias as $dia => $tipos) {
+                        $mwmed = 0;
+                        $gwh = 0;
+                        foreach ($tipos as $tipo => $regioes) {
+                            foreach ($regioes as $regiao => $unidades) {
+                                $gwh += (float)preg_replace('(,)', '.',$this->data['diario'][$ano][$mes][$dia][$tipo][$regiao]['gwh']);
+                                $mwmed += (float)preg_replace('(,)', '.',$this->data['diario'][$ano][$mes][$dia][$tipo][$regiao]['mwmed']);
+                            }
+                            $this->data['diario'][$ano][$mes][$dia][$tipo]['SIN']['gwh'] = $gwh;
+                            $this->data['diario'][$ano][$mes][$dia][$tipo]['SIN']['mwmed'] = $mwmed;
                         }
                     }
                 }
@@ -789,6 +837,7 @@ dd($data);
 
             $this->util->enviaArangoDB('ons', 'geracao', $date, $this->data);
         }
+
 
         public function historico_geracao_mensal()
         {
@@ -836,8 +885,22 @@ dd($data);
                             $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[2])->format('Y');
                             $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[2])->format('m'));
 
-                            $this->data['mensal'][$ano][$mes][$linha[1]][$fonte][$unidade] = trim($this->regexOns->convert_str($linha[5]));
+                            $this->data['mensal'][$ano][$mes][$fonte][$linha[1]][$unidade] = trim($this->regexOns->convert_str($linha[5]));
                         }
+                    }
+                }
+            }
+            foreach ($this->data['mensal'] as $ano => $meses) {
+                foreach ($meses as $mes => $tipos) {
+                    $mwmed = 0;
+                    $gwh = 0;
+                    foreach ($tipos as $tipo => $regioes) {
+                        foreach ($regioes as $regiao => $unidades) {
+                            $gwh += (float)preg_replace('(,)', '.',$this->data['mensal'][$ano][$mes][$tipo][$regiao]['gwh']);
+                            $mwmed += (float)preg_replace('(,)', '.',$this->data['mensal'][$ano][$mes][$tipo][$regiao]['mwmed']);
+                        }
+                        $this->data['mensal'][$ano][$mes][$tipo]['SIN']['gwh'] = $gwh;
+                        $this->data['mensal'][$ano][$mes][$tipo]['SIN']['mwmed'] = $mwmed;
                     }
                 }
             }
@@ -884,11 +947,22 @@ dd($data);
 
                     foreach ($rowData as $key => $item) {
                         $linha = explode(';', $rowData[$key]);
-
                         if ($linha[0]) {
-                            $this->data['anual'][$linha[0]][$linha[1]] = trim($this->regexOns->convert_str($linha[7]));
+                            $this->data['anual'][$linha[0]][$fonte][$linha[1]][$unidade] = trim($this->regexOns->convert_str($linha[7]));
                         }
                     }
+                }
+            }
+            foreach ($this->data['anual'] as $ano => $tipos) {
+                $mwmed = 0;
+                $gwh = 0;
+                foreach ($tipos as $tipo => $regioes) {
+                    foreach ($regioes as $regiao => $unidades) {
+                        $gwh += (float)$this->data['anual'][$ano][$tipo][$regiao]['gwh'];
+                        $mwmed += (float)$this->data['anual'][$ano][$tipo][$regiao]['mwmed'];
+                    }
+                    $this->data['anual'][$ano][$tipo]['SIN']['gwh'] = $gwh;
+                    $this->data['anual'][$ano][$tipo]['SIN']['mwmed'] = $mwmed;
                 }
             }
 
@@ -900,27 +974,22 @@ dd($data);
         {
             $date = Carbon::now()->format('Y-m-d');
 
-            $files = [
-                'mwmed' => storage_path('app/historico/ons/ear/diario-mwmed.txt'),
-                '%_mlt' => storage_path('app/historico/ons/ear/diario-porcento.txt')
-            ];
+            $file = storage_path('app/historico/ons/ear/dia.csv');
 
-            foreach ($files as $unidade => $file)
+            $rowData = file($file);
+            unset($rowData[0]);
+
+            foreach ($rowData as $key => $item)
             {
-                $rowData = file($file);
-                unset($rowData[0]);
+                $linha = explode(';', $rowData[$key]);
 
-                foreach ($rowData as $key => $item)
-                {
-                    $linha = explode(';', $rowData[$key]);
+                $ano = Carbon::createFromFormat('d/m/Y', $linha[0])->format('Y');
+                $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[0])->format('m'));
+                $dia = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d');
 
-                    $ano = Carbon::createFromFormat('d/m/Y', $linha[0])->format('Y');
-                    $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[0])->format('m'));
-                    $dia = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d');
-
-                    $this->data['diario'][$linha[2]][$ano][$mes][$dia][$unidade] = $this->regexOns->convert_str($linha[5]);
-                }
+                $this->data['diario'][$linha[2]][$ano][$mes][$dia]['%ear_max'] = $this->regexOns->convert_str($linha[5]);
             }
+
             $this->util->enviaArangoDB('ons', 'ear', $date, $this->data);
         }
 
@@ -929,29 +998,26 @@ dd($data);
         {
             $date = Carbon::now()->format('Y-m-d');
 
-            $files = [
-                'mwmed' => storage_path('app/historico/ons/ear/semanal-mwmed.txt'),
-                '%_mlt' => storage_path('app/historico/ons/ear/semanal-porcento.txt')
-            ];
+            $file = storage_path('app/historico/ons/ear/semana.csv');
 
-            foreach ($files as $unidade => $file) {
-                $rowData = file($file);
-                unset($rowData[0]);
+            $rowData = file($file);
+            unset($rowData[0]);
 
-                foreach ($rowData as $key => $item)
-                {
-                    $linha = explode(';', $rowData[$key]);
+            foreach ($rowData as $key => $item)
+            {
+                $linha = explode(';', $rowData[$key]);
 
-                    $ano_inicio = Carbon::createFromFormat('d/m/Y', $linha[0])->format('Y');
-                    $date_inicio = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[0])->format('m'));
-                    $dia_inicio = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d');
+                $ano = Carbon::createFromFormat('d/m/Y', $linha[0])->format('Y');
+                $inicio = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d/m');
+                $fim = Carbon::createFromFormat('d/m/Y', $linha[0])->format('dd/m');
 
-                    $mes_fim = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[2])->format('m'));
-                    $dia_fim = Carbon::createFromFormat('d/m/Y', $linha[2])->format('d');
-
-                    $this->data['semanal'][$linha[1]][$ano_inicio][$mes_inicio]['de '.$dia_inicio.' de '.$mes_inicio.' ate '.$dia_fim.' de '.$mes_fim][$unidade] = $this->regexOns->convert_str($linha[6]);
-                }
+                $this->data['semanal'][$linha[1]][$ano][$key] = [
+                    'inicio' => $inicio,
+                    'fim' => $fim,
+                    'valor' => $this->regexOns->convert_str($linha[6])]
+                ;
             }
+
             $this->util->enviaArangoDB('ons', 'ear', $date, $this->data);
         }
 
@@ -960,25 +1026,21 @@ dd($data);
         {
             $date = Carbon::now()->format('Y-m-d');
 
-            $files = [
-                'mwmed' => storage_path('app/historico/ons/ear/mensal-mwmed.txt'),
-                '%_mlt' => storage_path('app/historico/ons/ear/mensal-porcento.txt')
-            ];
+            $file = storage_path('app/historico/ons/ear/mes.csv');
 
-            foreach ($files as $unidade => $file) {
-                $rowData = file($file);
-                unset($rowData[0]);
+            $rowData = file($file);
+            unset($rowData[0]);
 
-                foreach ($rowData as $key => $item)
-                {
-                    $linha = explode(';', $rowData[$key]);
+            foreach ($rowData as $key => $item)
+            {
+                $linha = explode(';', $rowData[$key]);
 
-                    $ano = explode(' de ', $linha[0])[1];
-                    $mes = explode(' de ', $linha[0])[0];
+                $ano = explode(' de ', $linha[0])[1];
+                $mes = explode(' de ', $linha[0])[0];
 
-                    $this->data['mensal'][$linha[1]][$ano][$mes][$unidade] = $this->regexOns->convert_str($linha[6]);
-                }
+                $this->data['mensal'][$linha[1]][$ano][$mes]['%ear_max'] = $this->regexOns->convert_str($linha[6]);
             }
+
             $this->util->enviaArangoDB('ons', 'ear', $date, $this->data);
         }
 

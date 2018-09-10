@@ -182,8 +182,6 @@ class AneelController extends Controller
     }
     public function contaDesenvEnerg()
     {
-
-
         $response = Curl::to('http://biblioteca.aneel.gov.br/asp/resultadoFrame.asp?modo_busca=legislacao&content=resultado&iBanner=0&iEscondeMenu=0&iSomenteLegislacao=0&iIdioma=0&BuscaSrv=1')
             ->withData(
                 array(
