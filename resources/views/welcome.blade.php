@@ -5,7 +5,7 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title>Laravel</title>
+        <title>Pink and Brain - Crawler</title>
 
         <!-- Fonts -->
         <link href="https://fonts.googleapis.com/css?family=Raleway:100,600" rel="stylesheet" type="text/css">
@@ -80,8 +80,8 @@
 
             <div class="content">
                 <div class="title m-b-md">
-                    <i class="fas fa-robot"></i>
-                    capacitor-crawler
+                    <img src="/images/silhouette-brain-22.jpg" style="width:128px;" /> <br />
+                    pink-and-brain
                 </div>
             </div>
         </div>

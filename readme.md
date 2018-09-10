@@ -1,6 +1,6 @@
 <p align="center">
     <img src="https://laravel.com/assets/img/components/logo-laravel.svg"> 
-    <img src="https://www.arangodb.com/wp-content/uploads/2016/05/ArangoDB_logo_@3.png" style="margin-left:10px;">
+    <img src="https://www.arangodb.com/wp-content/uploads/2016/05/ArangoDB_logo_@3.png" style="margin-left:10px; height:70px;">
 </p>
 ## About Crawler
 

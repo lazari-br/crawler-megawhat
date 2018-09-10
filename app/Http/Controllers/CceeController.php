@@ -425,7 +425,7 @@ class CceeController extends Controller
                 $norte[$key]
             ];
         }
-
+        dd($data);
         $this->util->enviaArangoDB('ccee', 'PLD', $date, $data);
 
     }
