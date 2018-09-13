@@ -22,7 +22,7 @@ class UtilProtheus extends Util
     public function setDateProtheus()
     {
         $carbon = new Carbon();
-        $diaSemana = $carbon->format('N');
+        $diaSemana = (float)$carbon->format('N');
         $diff = 0;
 //        $atraso = ;
 
@@ -35,7 +35,7 @@ class UtilProtheus extends Util
         }
 
         $date = $carbon->subDays($diff);
-
+dd($date);
         return $date;
     }
 

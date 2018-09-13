@@ -301,4 +301,60 @@ class ImportServiceONS
         return $data[$ano][$mes];
     }
 
+    public function historico_pmo_memorial($file, $i, $ano, $mes)
+    {
+        $sheet = $i; // Existentes_CCEE
+        $resultado['Não Simulada']['Existentes'] = $this->importExcelOns->pmoNaoSimuladasExistente($file, $sheet, $ano, $mes);
+        $sheet = $i + 1; // Expansão (440-2011 e 476-2012)
+        $resultado['Não Simulada']['Expansão'] = $this->importExcelOns->pmoNaoSimuladasExpansao($file, $sheet, $ano, $mes);
+
+        return $resultado;
+
+    }
+
+    public function import_historico_geracao_diario($files, $fonte)
+    {
+        $data = [];
+        foreach ($files as $unidade => $file) {
+            $data = $this->importExcelOns->import_historico_geracao_diario($file, $fonte, $unidade);
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_diario_sin($file, $unidade, $fonte)
+    {
+        return $this->importExcelOns->import_historico_geracao_diario_sin($file, $fonte, $unidade);
+    }
+
+    public function import_historico_geracao_mensal($files, $fonte)
+    {
+        $data = [];
+        foreach ($files as $unidade => $file) {
+            $data = $this->importExcelOns->import_historico_geracao_mensal($file, $fonte, $unidade);
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_mensal_sin($file, $unidade, $fonte)
+    {
+        return $this->importExcelOns->import_historico_geracao_mensal_sin($file, $fonte, $unidade);
+    }
+
+    public function import_historico_geracao_anual($files, $fonte)
+    {
+        $data = [];
+        foreach ($files as $unidade => $file) {
+            $data = $this->importExcelOns->import_historico_geracao_anual($file, $fonte, $unidade);
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_anual_sin($file, $unidade, $fonte)
+    {
+        return $this->importExcelOns->import_historico_geracao_anual_sin($file, $fonte, $unidade);
+    }
+
 }

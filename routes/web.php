@@ -21,7 +21,6 @@ Route::prefix('aneel')->group(function () {
     Route::get('/cde-audiencia', 'AneelController@cdeAudiencia')->name('cde-audiencia');
     Route::get('/ceg', 'AneelController@cegGeracao')->name('ceg');
     Route::get('/expansao', 'AneelController@expansaoGeracao')->name('expansao');
-
 });
 
 Route::prefix('ons')->group(function () {
@@ -45,7 +44,7 @@ Route::prefix('ons')->group(function () {
     //intercambio
     Route::get('/historico-intercambio-diario', 'HistoricoOnsController@historico_intercambio_diario')->name('historico-intercambio-diario');
     //cmo
-    Route::get('/historico-cmo-semanal', 'HistoricoOnsController@hiHistoricostorico_cmo_semanal')->name('historico-cmo-semanal');
+    Route::get('/historico-cmo-semanal', 'HistoricoOnsController@historico_cmo_semanal')->name('historico-cmo-semanal');
     Route::get('/historico-cmo-patamar', 'HistoricoOnsController@historico_cmo_patamar')->name('historico-cmo-patamar');
     //geracao
     Route::get('/historico-geracao-diario', 'HistoricoOnsController@historico_geracao_diario')->name('historico-geracao-diario');
@@ -56,8 +55,8 @@ Route::prefix('ons')->group(function () {
     Route::get('/historico-ear-semanal', 'HistoricoOnsController@historico_ear_semanal')->name('historico-ear-semanal');
     Route::get('/historico-ear-mensal', 'HistoricoOnsController@historico_ear_mensal')->name('historico-ear-mensal');
     //pmo-cdre
-    Route::get('/historico-cdre', 'HistoricoOnsController@historico_cdre')->name('historico-cdre');
-
+    Route::get('/historico-cdre-cronograma', 'HistoricoOnsController@historico_cdre_cronograma')->name('historico-cdre-cronograma');
+    Route::get('/historico-cdre-memorial', 'HistoricoOnsController@historico_cdre_memorial')->name('historico-cdre-memorial');
 });
 
 Route::prefix('ccee')->group(function () {
@@ -69,12 +68,11 @@ Route::prefix('ccee')->group(function () {
 
     //historico
     //pld
-    Route::get('/historico-pld-mensal', 'CceeController@historico_pld_mensal')->name('historico-pld-mensal');
-    Route::get('/historico-pld-semanal', 'CceeController@historico_pld_semanal')->name('historico-pld-semanal');
+    Route::get('/historico-pld-mensal', 'HistoricoCceeController@historico_pld_mensal')->name('historico-pld-mensal');
+    Route::get('/historico-pld-semanal', 'HistoricoCceeController@historico_pld_semanal')->name('historico-pld-semanal');
     //infomercado
-    Route::get('/historico-infoMercado-geral', 'CceeController@historico_infoMercado_geral')->name('historico-infoMercado-geral');
-    Route::get('/historico-infoMercado-individual', 'CceeController@historico_infoMercado_individual')->name('historico-infoMercado-individual');
-
+    Route::get('/historico-infoMercado-geral', 'HistoricoCceeController@historico_infoMercado_geral')->name('historico-infoMercado-geral');
+    Route::get('/historico-infoMercado-individual', 'HistoricoCceeController@historico_infoMercado_individual')->name('historico-infoMercado-individual');
 });
 
 Route::get('/cde-eletrobras', 'EletroBrasController@getCde')->name('cde-eletrobras');
@@ -83,17 +81,28 @@ Route::get('/rdh', 'RdhController@enaRdh')->name('rdh_ena');
 Route::get('/protheus-pld', 'ProtheusController@pld')->name('pld');
 
 Route::get('/epe-historico', 'EpeConsumoController@historico_epe')->name('epe-historico');
-
-Route::get('teste', function ($date = '5/6/2018'){
-
-
-
-    mkdir('/var/www/html/crawler-megawhat/app/AAAAAA');
+Route::get('/historico-protheus-pld', 'ProtheusController@historico_pld_protheus')->name('historico-pld-protheus');
 
 
 
+        use Crawler\StorageDirectory\StorageDirectory;
 
-});
+        Route::get('teste', function (StorageDirectory $storage){
+
+            $manager = new \Intervention\Image\ImageManager;
+
+            $row = '/var/www/html/crawler-megawhat/storage/app/pequenas_centrais_hidreletricas.jpeg';
+            $path = storage_path('app/teste.jpeg');
+            $image = $manager->make($row)->save($path);
+
+            $scale = 2;
+            $widht = $scale * (float)$image->width();
+            $height = $scale * (float)$image->height();
+            $manager->make($path)->resize($widht, $height)->save($path);
+
+            dd($scale, \OCR::scan($path));
+
+        });
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////TESTE////////////////////////////////////////////////////////////////////////////////////////////////////

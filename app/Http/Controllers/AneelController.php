@@ -398,6 +398,7 @@ class AneelController extends Controller
 
   public function cegGeracao (Client $client)
     {
+        set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
         $url_base = "http://www2.aneel.gov.br/scg/consulta_empreendimento.asp?acao=BUSCAR&pagina=&IdTipoGeracao=&IdFaseUsina=&CodCIE=&NomeEmpreendimento=";
@@ -433,11 +434,11 @@ class AneelController extends Controller
             $proprietario = $this->regexAneel->getProprietario($response);
             $municipio = $this->regexAneel->getMunicipio($response);
 
-                $dadosPagina = [];
-                foreach ($ceg as $key => $item)
-                {
-                    $dados[($pagina-1)*1000+$key] = $dadosPagina[$key] =
-                    [
+            $dadosPagina = [];
+            foreach ($ceg as $key => $item)
+            {
+                $dados[($pagina-1)*1000+$key] = $dadosPagina[$key] =
+                    array_merge(
                         $ceg[$key],
                         $tipo[$key],
                         $empreendimento[$key],
@@ -449,13 +450,11 @@ class AneelController extends Controller
                         $situacao[$key],
                         $proprietario[$key],
                         $municipio[$key]
-                    ];
-
-                }
-
+                    );
+            }
         }
 
-        $this->util->enviaArangoDB('aneel', 'usinas', $date, $dados);
+        $this->util->enviaArangoDB('aneel', 'usinas', $date, 'indefinido', $dados);
 
       return response()->json(
           [

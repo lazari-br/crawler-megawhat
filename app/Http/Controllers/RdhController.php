@@ -39,19 +39,16 @@ class RdhController extends Controller
 
     public function enaRdh()
     {
-        $carbon = Carbon::now();
-        $date = $carbon->format('m-Y');
+        $date = Util::getDateIso();
 
         // Importação dos dados da planilha
         $sheet = 1; // Hidroenergéticas-Subsistemas
         $resultado[$date]['ENA'] = $this->importExcelRdh->rdhEna(
             storage_path('/app/RDH01JAN.xlsx'),
-
-            $sheet,
-            $carbon
+            $sheet
         );
 
-        $this->util->enviaArangoDB('rdh', 'rds-diario', $date, $resultado);
+        $this->util->enviaArangoDB('rdh', 'ena', $date, 'diario',  $resultado);
 
         return response()->json([
             'responsabilidade' => 'Buscar os dados de ENA acessados por e-mail',

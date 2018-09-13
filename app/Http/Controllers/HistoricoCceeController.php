@@ -17,7 +17,6 @@ use Crawler\Regex\RegexCceeNewaveDecomp;
 
 class HistoricoCceeController extends Controller
 {
-
     private $storageDirectory;
     private $client;
     private $regexCceePldSemanal;
@@ -85,15 +84,32 @@ class HistoricoCceeController extends Controller
             $ano = explode('/', $ano_mes[$key])[1];
             $mes = $this->util->mesMesportugues(explode('/', $ano_mes[$key])[0]);
 
-            $data['mensal'][$ano][$mes] = [$seco[$key],
-                $sul[$key],
-                $ne[$key],
-                $norte[$key]
-            ];
+            $data[] = array_merge(
+                [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => 'Sudeste/Centro-Oeste',
+                    'valor' => $seco[$key],
+                ],[
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => 'Sul',
+                    'valor' => $sul[$key],
+                ],[
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => 'Nordeste',
+                    'valor' => $ne[$key],
+                ],[
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => 'Norte',
+                    'valor' => $norte[$key],
+                ]
+            );
         }
 
-        $this->util->enviaArangoDB('ccee', 'PLD', $date, $data);
-
+        $this->util->enviaArangoDB('ccee', 'pld', $date, 'mensal', $data);
     }
 
     public function historico_pld_semanal()
@@ -130,12 +146,12 @@ class HistoricoCceeController extends Controller
             '12'
         ];
 
-        $date = [];
+        $data = [];
         foreach ($anos as $key => $ano) {
             foreach ($meses as $chave => $mes) {
                 $date = $anos[$key] . $meses[$chave];
 
-                $url_base = "https://www.ccee.org.br//preco_adm/precos/historico/semanal/index.jsp?month=".$date;
+                $url_base = "https://www.ccee.org.br//preco_adm/precos/historico/semanal/index.jsp?month=" . $date;
 
                 $crawler = $this->client->request('GET', $url_base, array('allow_redirects' => true));
 
@@ -143,108 +159,103 @@ class HistoricoCceeController extends Controller
 
                 $results = explode('<table width="100%" class="displayTag-table_soma">', $this->regexCceePldSemanal->clearHtml($crawler->html()));
                 $results = array_slice($results, 1);
-                $sudeste_centro_oeste = [];
-                $sul = [];
-                $nordeste = [];
-                $norte = [];
-                $date = Util::getDateIso();
 
                 foreach ($results as $result) {
-                    /** Sudeste/centro-Oeste */
-                    $sudeste_centro_oeste[] = [
-                        'semana' => $this->regexCceePldSemanal->getSemana($result),
-                        'periodo_de' => $this->regexCceePldSemanal->getPeriodoDe($result),
-                        'periodo_ate' => $this->regexCceePldSemanal->getPeriodoAte($result),
-                        'pesada' => $this->regexCceePldSemanal->getSudesteCentroOestePesada($result),
-                        'media' => $this->regexCceePldSemanal->getSudesteCentroOesteMedia($result),
-                        'leve' => $this->regexCceePldSemanal->getSudesteCentroOesteLeve($result),
+                    $data[] = [
+                        [
+                            'ano' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('Y'),
+                            'inicio' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('d/m/Y'),
+                            'fim' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoAte($result))->format('d/m/Y'),
+                            'subsistema' => 'Sudeste/Centro-Oeste',
+                            'valor' => [
+                                'pesado' => $this->regexCceePldSemanal->getSudesteCentroOestePesada($result),
+                                'medio' => $this->regexCceePldSemanal->getSudesteCentroOesteMedia($result),
+                                'leve' => $this->regexCceePldSemanal->getSudesteCentroOesteLeve($result)
+                            ]
+                        ], [
+                            'ano' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('Y'),
+                            'inicio' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('d/m/Y'),
+                            'fim' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoAte($result))->format('d/m/Y'),
+                            'subsistema' => 'Sul',
+                            'valor' => [
+                                'pesado' => $this->regexCceePldSemanal->getSulPesada($result),
+                                'medio' => $this->regexCceePldSemanal->getSulMedia($result),
+                                'leve' => $this->regexCceePldSemanal->getSulLeve($result)
+                            ]
+                        ], [
+                            'ano' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('Y'),
+                            'inicio' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('d/m/Y'),
+                            'fim' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoAte($result))->format('d/m/Y'),
+                            'subsistema' => 'Nordeste',
+                            'valor' => [
+                                'pesado' => $this->regexCceePldSemanal->getNordestePesada($result),
+                                'medio' => $this->regexCceePldSemanal->getNordesteMedia($result),
+                                'leve' => $this->regexCceePldSemanal->getNordesteLeve($result)
+                            ]
+                        ], [
+                            'ano' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('Y'),
+                            'inicio' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoDe($result))->format('d/m/Y'),
+                            'fim' => Carbon::createFromFormat('Y-m-d', $this->regexCceePldSemanal->getPeriodoAte($result))->format('d/m/Y'),
+                            'subsistema' => 'Norte',
+                            'valor' => [
+                                'pesado' => $this->regexCceePldSemanal->getNortePesada($result),
+                                'medio' => $this->regexCceePldSemanal->getNorteMedia($result),
+                                'leve' => $this->regexCceePldSemanal->getNorteLeve($result)
+                            ]
+                        ]
                     ];
-                    /** ----------- */
-
-                    /** Sul */
-                    $sul[] = [
-                        'semana' => $this->regexCceePldSemanal->getSemana($result),
-                        'periodo_de' => $this->regexCceePldSemanal->getPeriodoDe($result),
-                        'periodo_ate' => $this->regexCceePldSemanal->getPeriodoAte($result),
-                        'pesada' => $this->regexCceePldSemanal->getSulPesada($result),
-                        'media' => $this->regexCceePldSemanal->getSulMedia($result),
-                        'leve' => $this->regexCceePldSemanal->getSulLeve($result),
-                    ];
-                    /** ----------- */
-
-                    /** Nordeste */
-                    $nordeste[] = [
-                        'semana' => $this->regexCceePldSemanal->getSemana($result),
-                        'periodo_de' => $this->regexCceePldSemanal->getPeriodoDe($result),
-                        'periodo_ate' => $this->regexCceePldSemanal->getPeriodoAte($result),
-                        'pesada' => $this->regexCceePldSemanal->getNordestePesada($result),
-                        'media' => $this->regexCceePldSemanal->getNordesteMedia($result),
-                        'leve' => $this->regexCceePldSemanal->getNordesteLeve($result),
-                    ];
-                    /** ---------- */
-
-                    /** Norte */
-                    $norte[] = [
-                        'semana' => $this->regexCceePldSemanal->getSemana($result),
-                        'periodo_de' => $this->regexCceePldSemanal->getPeriodoDe($result),
-                        'periodo_ate' => $this->regexCceePldSemanal->getPeriodoAte($result),
-                        'pesada' => $this->regexCceePldSemanal->getNortePesada($result),
-                        'media' => $this->regexCceePldSemanal->getNorteMedia($result),
-                        'leve' => $this->regexCceePldSemanal->getNorteLeve($result),
-                    ];
-
                 }
-
-                $resultados['semanal'] [$ano][$this->util->mesMesportugues($mes)] = [
-                    'sudeste_centro_oeste' => $sudeste_centro_oeste,
-                    'sul' => $sul,
-                    'nordeste' => $nordeste,
-                    'norte' => $norte
-                ];
+            }
+        }
+        $resultado = [];
+        foreach ($data as $item) {
+            foreach ($item as $info) {
+                    $resultado[] = $info;
             }
         }
 
-        $this->util->enviaArangoDB('ccee', 'PLD', $date, $resultados);
+        $this->util->enviaArangoDB('ccee', 'pld', Util::getDateIso(), 'semanal', $resultado);
     }
+
 
     public function historico_infoMercado_geral()
     {
         set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-        $dados['mensal']['geral']['2017'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2017.xlsx'), $date,
-            4,
-            2,
-            26,
-            6,
-            23,
-            9,
-            24);
-        $dados['mensal']['geral']['2016'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
-            4,
-            2,
-            25,
-            6,
-            22,
-            9,
-            23);
-        $dados['mensal']['geral']['2015'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
-            4,
-            2,
-            25,
-            6,
-            22,
-            9,
-            23);
-        $dados['mensal']['geral']['2014'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2014 vs3.xlsx'), $date,
-            3,
-            1,
-            23,
-            5,
-            21,
-            8,
-            22);
-        $dados['mensal']['geral']['2013'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2013 - vs1.xlsx'), $date,
+//        $dados['geral']['2017'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2017.xlsx'), $date,
+//            4,
+//            2,
+//            26,
+//            6,
+//            23,
+//            9,
+//            24);
+//        $dados['geral']['2016'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
+//            4,
+//            2,
+//            25,
+//            6,
+//            22,
+//            9,
+//            23);
+//        $dados['geral']['2015'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
+//            4,
+//            2,
+//            25,
+//            6,
+//            22,
+//            9,
+//            23);
+//        $dados['geral']['2014'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2014 vs3.xlsx'), $date,
+//            3,
+//            1,
+//            23,
+//            5,
+//            21,
+//            8,
+//            22);
+        $dados['geral']['2013'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2013 - vs1.xlsx'), $date,
             3,
             1,
             23,
@@ -253,7 +264,7 @@ class HistoricoCceeController extends Controller
             8,
             22);
 
-        $this->util->enviaArangoDB('ccee', 'info-mercado', $date, $dados);
+        $this->util->enviaArangoDB('ccee', 'info-mercado', $date, 'mensal', $dados);
     }
 
     public function historico_infoMercado_individual()
@@ -261,13 +272,18 @@ class HistoricoCceeController extends Controller
         set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-        $dados['mensal']['individual']['2013'] = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(storage_path('app/historico/ccee/InfoMercado Dados Individuais 2013_Rev1.xlsx'), 2, $date);
-        $dados['mensal']['individual']['2014'] = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(storage_path('app/historico/ccee/InfoMercado Dados Individuais 2014_Rev1.xlsx'), 2, $date);
-        $dados['mensal']['individual']['2015'] = $this->importServiceCcee->historico_infoMercado_individual_2015(storage_path('app/historico/ccee/InfoMercado Dados Individuais 2015_Rev1.xlsx'), 2, $date);
-        $dados['mensal']['individual']['2016'] = $this->importServiceCcee->importInfoIndividual(storage_path('app/historico/ccee/InfoMercado Dados Individuais 2016_Rev1.xlsx'), 3, $date);
-        $dados['mensal']['individual']['2017'] = $this->importServiceCcee->importInfoIndividual(storage_path('app/historico/ccee/InfoMercado Dados Individuais 2017_Rev1.xlsx'), 3, $date);
+        $dados['individual']['2013'] = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(
+            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2013_Rev1.xlsx'), 2, $date);
+        $dados['individual']['2014'] = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(
+            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2014_Rev1.xlsx'), 2, $date);
+        $dados['individual']['2015'] = $this->importServiceCcee->historico_infoMercado_individual_2015(
+            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2015_Rev1.xlsx'), 2, $date);
+        $dados['individual']['2016'] = $this->importServiceCcee->importInfoIndividual(
+            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2016_Rev1.xlsx'), 3, $date);
+        $dados['individual']['2017'] = $this->importServiceCcee->importInfoIndividual(
+            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2017_Rev1.xlsx'), 3, $date);
 
-        $this->util->enviaArangoDB('ccee', 'info-mercado', $date, $dados);
+        $this->util->enviaArangoDB('ccee', 'info-mercado', $date, 'mensal', $dados);
     }
 
 }

@@ -63,37 +63,28 @@ class ImportExcelEpe
         return $data;
     }
 
-    public function epe_historico($file, $sheet)
+    public function epe_historico($file, $sheet, $tipo)
     {
-        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
         $data = [];
-        $indice = '';
-        $ano = '';
-        $rowData = $this->util->import(7, $sheet, $file);
+        $rowData = $this->util->import(22, $sheet, $file);
 
         foreach ($rowData as $key => $info) {
 
-            if (!array_values($rowData[$key])[1]) {
-                if ($rowData[$key]['total_residencial'] &&
-                    stripos($rowData[$key]['total_residencial'], '*') === false)
-                {
-                    $indice = $rowData[$key]['total_residencial'];
-                }
+            $rowData = $this->util->celulaMesclada($rowData, 1, 1);
+            if (strpos(strtolower($rowData[$key][2]), 'total') !== false) {
+                $rowData[$key][2] = 'SIN';
             }
-            if (!$rowData[$key]['total_residencial'] &&
-                $rowData[$key]['total_residencial'] !== '') {
-                if (is_numeric(preg_replace('(\*)', '', array_values($rowData[$key])[1])))
-                {
-                    $ano = preg_replace('(\*)', '', array_values($rowData[$key])[1]);
-                }
-            }
-
-            if (array_values($rowData[$key])[2] &&
-                array_values($rowData[$key])[2] !== 'FEV') {
-                $data[$ano][$indice][$rowData[$key]['total_residencial']] = array_combine($meses, $this->util->formata_valores(array_slice($rowData[$key], 1, 13)));
-            }
-            unset($data['']);
+            $data[$key] = [
+                'tipo' => $tipo,
+                'ano' => $rowData[$key][0],
+                strtolower($rowData[$key][1]) => strtolower($rowData[$key][2]),
+                'valor' => [
+                    'mwh' => $this->util->formata_valores(array_combine($meses, array_slice($rowData[$key], 3, 12))),
+                    'mwmed' => $this->util->formata_valores_mwmed(array_combine($meses, array_slice($rowData[$key], 3, 12)))
+                ]
+            ];
         }
 
         return $data;

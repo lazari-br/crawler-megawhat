@@ -55,6 +55,7 @@ class HistoricoOnsController extends Controller
     public function historico_enas_mensal()
     {
         $data = [];
+        $tratar = [];
         $ena =[];
         $date = Carbon::now()->format('Y-m-d');
 
@@ -78,34 +79,49 @@ class HistoricoOnsController extends Controller
 
                 $ena[$key][$tipo] = $this->regexOns->convert_str($linha[7]);
 
-                $data['mensal'][$ano][$mes][trim($linha[1])] = $ena[$key];
+                $tratar[$ano][$mes][trim($linha[1])] = $ena[$key];
+
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => trim($linha[1]),
+                    'valor' => $this->util->formata_valores($ena[$key])
+                ];
             }
         }
-        foreach ($data['mensal'] as $ano => $meses) {
+        foreach ($tratar as $ano => $meses) {
             foreach ($meses as $mes => $regioes) {
                 $mwmed = 0;
                 $percent = 0;
                 foreach ($regioes as $regiao => $array) {
                     foreach ($array as $unidade => $valor) {
                         if ($unidade === 'mwmed') {
-                            $mwmed += (float)preg_replace('(,)', '.', $data['mensal'][$ano][$mes][$regiao][$unidade]);
-                            $data['mensal'][$ano][$mes]['SIN'][$unidade] = $mwmed;
+                            $mwmed += (float)preg_replace('(,)', '.', $tratar[$ano][$mes][$regiao][$unidade]);
+                            $tratar[$ano][$mes]['SIN'][$unidade] = $mwmed;
                         }  elseif ($unidade === '%mlt') {
-                            $percent += ((float)preg_replace('(,)', '.', $data['mensal'][$ano][$mes][$regiao]['%mlt']) *
-                                (float)preg_replace('(,)', '.', $data['mensal'][$ano][$mes][$regiao]['mwmed']));
+                            $percent += ((float)preg_replace('(,)', '.', $tratar[$ano][$mes][$regiao]['%mlt']) *
+                                (float)preg_replace('(,)', '.', $tratar[$ano][$mes][$regiao]['mwmed']));
                         }
                     }
                 }
-                $data['mensal'][$ano][$mes]['SIN']['%mlt'] = (float)$percent / (float)$mwmed;
+                $data[] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => 'SIN',
+                    'valor' => $this->util->formata_valores([
+                        '%mlt' => (float)$percent / (float)$mwmed
+                    ])
+                ];
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'ena', $date, $data);
+        $this->util->enviaArangoDB('ons', 'ena', $date, 'mensal', $data);
     }
 
     public function historico_enas_anual()
     {
         $data = [];
+        $tratar = [];
         $ena =[];
         $date = Carbon::now()->format('Y-m-d');
 
@@ -127,34 +143,44 @@ class HistoricoOnsController extends Controller
 
                 $ena[$key][$tipo] = $this->regexOns->convert_str($linha[6]);
 
-                $data['anual'][trim($linha[0])][trim($linha[1])] = $ena[$key];
+                $tratar[trim($linha[0])][trim($linha[1])] = $ena[$key];
+
+                $data[$key] = [
+                    'ano' => trim($linha[0]),
+                    'subsistema' => trim($linha[1]),
+                    'valor' => $this->util->formata_valores($ena[$key])
+                ];
             }
         }
-        foreach ($data['anual'] as $ano => $regioes) {
+        foreach ($tratar as $ano => $regioes) {
             $mwmed = 0;
             $percent = 0;
             foreach ($regioes as $regiao=> $array) {
                 foreach ($array as $unidade => $valor) {
                     if ($unidade === 'mwmed') {
-                        $mwmed += (float)preg_replace('(,)', '.', $data['anual'][$ano][$regiao][$unidade]);
-                        $data['anual'][$ano]['SIN'][$unidade] = $mwmed;
+                        $mwmed += (float)preg_replace('(,)', '.', $tratar[$ano][$regiao][$unidade]);
+                        $tratar[$ano]['SIN'][$unidade] = $mwmed;
                     } elseif ($unidade === '%mlt') {
-                        $percent += ((float)preg_replace('(,)', '.',$data['anual'][$ano][$regiao]['%mlt']) *
-                            (float)preg_replace('(,)', '.', $data['anual'][$ano][$regiao]['mwmed']));
+                        $percent += ((float)preg_replace('(,)', '.',$tratar[$ano][$regiao]['%mlt']) *
+                            (float)preg_replace('(,)', '.', $tratar[$ano][$regiao]['mwmed']));
                     }
                 }
             }
-            $data['anual'][$ano]['SIN']['%mlt'] = (float)$percent / (float)$mwmed;
+            $data[] = [
+                'ano' => $ano,
+                'subsistema' => 'SIN',
+                'valor' => $this->util->formata_valores(['%mlt' => ((float)$percent / (float)$mwmed)])
+            ];
         }
 
-        $this->util->enviaArangoDB('ons', 'ena', $date, $data);
+        $this->util->enviaArangoDB('ons', 'ena', $date, 'anual', $data);
     }
 
     public function historico_enas_semanal()
     {
         $data = [];
         $ena =[];
-        $subsistema =[];
+        $tratar =[];
         $date = Carbon::now()->format('Y-m-d');
 
         $files = [
@@ -180,22 +206,45 @@ class HistoricoOnsController extends Controller
                 $carbon_fim = Carbon::createFromFormat('d/m/Y', $linha[2]);
                 $date_fim = $carbon_fim->format('d/m');
 
-                $ena[$tipo] = $this->regexOns->convert_str($linha[7]);
+                $ena[$key][$tipo] = $this->regexOns->convert_str($linha[7]);
 
-                $data['semanal'][$ano_inicio][trim($linha[1])][$key] = [
+                $tratar[$ano_inicio][$date_inicio.'*'.$date_fim][trim($linha[1])] = $ena[$key];
+
+                $data[$key] = [
+                    'ano' => $ano_inicio,
+                    'subsistema' => trim($linha[1]),
                     'inicio' => $date_inicio,
                     'fim' => $date_fim,
-                    'valor' => $ena
+                    'valor' => $this->util->formata_valores($ena[$key])
+                ];
+            }
+        }
+        foreach ($tratar as $ano => $inicio)  {
+            foreach ($inicio as $semana => $regioes) {
+                $mwmed = 0;
+                $percent = 0;
+                foreach ($regioes as $regiao => $array) {
+                    $mwmed += (float)preg_replace('(,)', '.', $array['mwmed']);
+                    $percent += (float)preg_replace('(,)', '.', $array['%mlt']) *
+                        (float)preg_replace('(,)', '.', $array['mwmed']);
+                }
+                $data[] = [
+                    'ano' => $ano,
+                    'subsistema' => 'SIN',
+                    'inicio' => explode('*', $semana)[0],
+                    'fim' => explode('*', $semana)[1],
+                    'valor' => $this->util->formata_valores(['%mlt' => ((float)$percent / (float)$mwmed)])
                 ];
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'ena', $date, $data);
+        $this->util->enviaArangoDB('ons', 'ena', $date, 'semanal', $data);
     }
 
     public function historico_enas_diario()
     {
         $data = [];
+        $tratar = [];
         $ena =[];
         $date = Carbon::now()->format('Y-m-d');
 
@@ -222,10 +271,17 @@ class HistoricoOnsController extends Controller
 
                 $ena[$key][$tipo] = $this->regexOns->convert_str($linha[7]);
 
-                $data['diario'][$ano_inicio][$mes_inicio][$dia_inicio][trim($linha[1])] = $ena[$key];
+                $tratar[$ano_inicio][$mes_inicio][$dia_inicio][trim($linha[1])] = $ena[$key];
+                $data[$key] = [
+                    'ano' => $ano_inicio,
+                    'mes' => $mes_inicio,
+                    'dia' => $dia_inicio,
+                    'subsistema' => trim($linha[1]),
+                    'valor' => $this->util->formata_valores($ena[$key])
+                ];
             }
         }
-        foreach ($data['diario'] as $ano => $meses) {
+        foreach ($tratar as $ano => $meses) {
             foreach ($meses as $mes => $dias) {
                 foreach ($dias as $dia => $regioes) {
                     $mwmed = 0;
@@ -233,26 +289,32 @@ class HistoricoOnsController extends Controller
                     foreach ($regioes as $regiao => $array) {
                         foreach ($array as $unidade => $valor) {
                             if ($unidade === 'mwmed') {
-                                $mwmed += (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao][$unidade]);
-                                $data['diario'][$ano][$mes][$dia]['SIN'][$unidade] = $mwmed;
+                                $mwmed += (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao][$unidade]);
+                                $tratar[$ano][$mes][$dia]['SIN'][$unidade] = $mwmed;
                             } elseif ($unidade === '%mlt') {
-                                $percent += ((float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['%mlt']) *
-                                    (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['mwmed']));
+                                $percent += ((float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao]['%mlt']) *
+                                    (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao]['mwmed']));
                             }
                         }
                     }
-                    $data['diario'][$ano][$mes][$dia]['SIN']['%mlt'] = (float)$percent / (float)$mwmed;
+                    $data[] = [
+                        'ano' => $ano,
+                        'mes' => $mes,
+                        'dia' => $dia,
+                        'subsistema' => 'SIN',
+                        'valor' => $this->util->formata_valores(['%mlt' => (float)$percent / (float)$mwmed])
+                    ];
                 }
             }
         }
-        $this->util->enviaArangoDB('ons', 'ena', $date, $data);
-    }
 
+        $this->util->enviaArangoDB('ons', 'ena', $date, 'diario', $data);
+    }
 
     public function historico_carga_anual()
     {
-
         $data = [];
+        $tratar = [];
         $geracao = [];
         $date = Carbon::now()->format('Y-m-d');
 
@@ -269,28 +331,39 @@ class HistoricoOnsController extends Controller
                 $linha = explode(';', $rowData[$key]);
 
                 $geracao[$key][$unidade] = $this->regexOns->convert_str($linha[4]);
+                $tratar[$linha[0]][$linha[1]] = $geracao[$key];
 
-                $data['anual'][$linha[0]][$linha[1]] = $geracao[$key];
+                $data[$key] = [
+                    'ano' => $linha[0],
+                    'subsistema' => $linha[1],
+                    'valor'=> $this->util->formata_valores($geracao[$key])
+                ];
             }
         }
-        foreach ($data['anual'] as $ano => $regioes) {
+        foreach ($tratar as $ano => $regioes) {
             $mwmed = 0;
             $gwh = 0;
             foreach ($regioes as $regiao => $array) {
-                $mwmed += (float)$data['anual'][$ano][$regiao]['mwmed'];
-                $gwh += (float)$data['anual'][$ano][$regiao]['gwh'];
+                $mwmed += (float)preg_replace('(,)', '.', $tratar[$ano][$regiao]['mwmed']);
+                $gwh += (float)preg_replace('(,)', '.', $tratar[$ano][$regiao]['gwh']);
             }
-            $data['anual'][$ano]['SIN']['mwmed'] = $mwmed;
-            $data['anual'][$ano]['SIN']['gwh'] = $gwh;
+            $data[] = [
+                'ano' => $ano,
+                'subsistema' => 'SIN',
+                'valor'=> $this->util->formata_valores([
+                    'mwmed' => $mwmed,
+                    'gwh' => $gwh
+                ])
+            ];
         }
 
-        $this->util->enviaArangoDB('ons', 'carga', $date, $data);
+        $this->util->enviaArangoDB('ons', 'carga', $date, 'anual', $data);
     }
 
     public function historico_carga_mensal()
     {
-
         $data = [];
+        $tratar = [];
         $geracao = [];
         $date = Carbon::now()->format('Y-m-d');
 
@@ -310,30 +383,43 @@ class HistoricoOnsController extends Controller
                 $mes = explode(' de ', $linha[0])[0];
 
                 $geracao[$key][$unidade] = $this->regexOns->convert_str($linha[6]);
+                $tratar[$ano][$mes][$linha[1]] = $geracao[$key];
 
-                $data['mensal'][$ano][$mes][$linha[1]] = $geracao[$key];
+                $data[$key] =[
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsistema' => $linha[1],
+                    'valor' => $geracao[$key]
+                ];
             }
         }
-        foreach ($data['mensal'] as $ano => $meses) {
+        foreach ($tratar as $ano => $meses) {
             foreach ($meses as $mes => $regioes) {
                 $mwmed = 0;
                 $gwh = 0;
                 foreach ($regioes as $regiao => $array) {
-                    $mwmed += (float)preg_replace('(,)', '.',$data['mensal'][$ano][$mes][$regiao]['mwmed']);
-                    $gwh += (float)preg_replace('(,)', '.',$data['mensal'][$ano][$mes][$regiao]['gwh']);
+                    $mwmed += (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$regiao]['mwmed']);
+                    $gwh += (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$regiao]['gwh']);
                 }
-                $data['mensal'][$ano][$mes]['SIN']['mwmed'] = $mwmed;
-                $data['mensal'][$ano][$mes]['SIN']['gwh'] = $gwh;
+                $data[] = [
+                    'ano' => $ano,
+                    'mes'=> $mes,
+                    'subsistema' => 'SIN',
+                    'valor' => $this->util->formata_valores([
+                        'mwmed' => $mwmed,
+                        'gwh' => $gwh
+                    ])
+                ];
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'carga', $date, $data);
+        $this->util->enviaArangoDB('ons', 'carga', $date,'mensal', $data);
     }
-
 
     public function historico_carga_diario()
     {
         $data = [];
+        $tratar = [];
         $geracao = [];
         $date = Carbon::now()->format('Y-m-d');
 
@@ -354,26 +440,41 @@ class HistoricoOnsController extends Controller
                 $ano = explode(' de ', $linha[0])[2];
 
                 $geracao[$key][$unidade] = $this->regexOns->convert_str($linha[6]);
+                $tratar[$ano][$mes][$dia][$linha[1]] = $geracao[$key];
 
-                $data['diario'][$ano][$mes][$dia][$linha[1]] = $geracao[$key];
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'dia' => $dia,
+                    'subsistema' => $linha[1],
+                    'valor' => $this->util->formata_valores($geracao[$key])
+                ];
             }
         }
-        foreach ($data['diario'] as $ano => $meses) {
+        foreach ($tratar as $ano => $meses) {
             foreach ($meses as $mes => $dias) {
                 foreach ($dias as $dia => $regioes) {
                     $mwmed = 0;
                     $gwh = 0;
                     foreach ($regioes as $regiao => $array) {
-                        $mwmed += (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['mwmed']);
-                        $gwh += (float)preg_replace('(,)', '.',$data['diario'][$ano][$mes][$dia][$regiao]['gwh']);
+                        $mwmed += (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao]['mwmed']);
+                        $gwh += (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao]['gwh']);
                     }
-                    $data['diario'][$ano][$mes][$dia]['SIN']['mwmed'] = $mwmed;
-                    $data['diario'][$ano][$mes][$dia]['SIN']['gwh'] = $gwh;
+                    $data[] = [
+                        'ano' => $ano,
+                        'mes' => $mes,
+                        'dia' => $dia,
+                        'subsistema' => 'SIN',
+                        'valor' => $this->util->formata_valores([
+                            'mwmed' => $mwmed,
+                            'gwh' => $gwh
+                        ])
+                    ];
                 }
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'carga', $date, $data);
+        $this->util->enviaArangoDB('ons', 'carga', $date, 'diario', $data);
     }
 
     public function historico_intercambio_diario()
@@ -414,7 +515,10 @@ class HistoricoOnsController extends Controller
                     $intercambio = $this->regexOns->convert_str($linha[7]);
                 }
 
-                $data['diario'][$ano][$mes][$dia] = [
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'dia' => $dia,
                     'origem' => $origem,
                     'destino' => $destino,
                     'intercambio' => $intercambio
@@ -423,10 +527,9 @@ class HistoricoOnsController extends Controller
 
         }
 
-        $this->util->enviaArangoDB('ons', 'intercambio', $date, $data);
+        $this->util->enviaArangoDB('ons', 'intercambio', $date, 'diario', $data);
 
     }
-
 
     public function historico_cmo_semanal()
     {
@@ -453,7 +556,9 @@ class HistoricoOnsController extends Controller
                 $inicio = Carbon::createFromFormat('m/d/Y', $linha[0])->format('d/m');
                 $fim = Carbon::createFromFormat('m/d/Y', $linha[2])->format('d/m');
 
-                $data['semanal']['por-subsistema'][$ano][$linha[1]][$key] = [
+                $data['por-subsistema'][$key] = [
+                    'ano' => $ano,
+                    'subsistema' => $linha[1],
                     'inicio' => $inicio,
                     'fim' => $fim,
                     'valor' => $this->regexOns->convert_str($linha[6])
@@ -462,7 +567,7 @@ class HistoricoOnsController extends Controller
 
         }
 
-        $this->util->enviaArangoDB('ons', 'cmo', $date, $data);
+        $this->util->enviaArangoDB('ons', 'cmo', $date, 'semanal', $data);
     }
 
     public function historico_cmo_patamar()
@@ -487,7 +592,9 @@ class HistoricoOnsController extends Controller
                 $inicio[$key] = Carbon::createFromFormat('m/d/Y', $linha[1])->format('d/m');
                 $fim[$key] = Carbon::createFromFormat('m/d/Y', $linha[2])->format('d/m');
 
-                $this->data['semanal']['por-patamar'][$ano[$key]][$linha[5]][$key] = [
+                $this->data['por-patamar'][$key] = [
+                    'ano' => $ano[$key],
+                    'subsistema', $linha[5],
                     'inicio' => $inicio[$key],
                     'fim' => $fim[$key],
                     'valor' => $this->regexOns->convert_str($linha[7])
@@ -495,223 +602,243 @@ class HistoricoOnsController extends Controller
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'cmo', $date, $this->data);
+        $this->util->enviaArangoDB('ons', 'cmo', $date, 'semanal', $this->data);
     }
 
 
     public function historico_geracao_diario()
     {
+        set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-        $files = [
-            'eolica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/diario/eolica-diario-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/diario/eolica-diario-mwmed.txt')
+        $eolica = [
+            'gwh' => storage_path('app/historico/ons/geracao/diario/eolica-diario-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/diario/eolica-diario-mwmed.txt')
+        ];
+        $hidreletrica = [
+            'gwh' => storage_path('app/historico/ons/geracao/diario/hidreletrica-diario-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/diario/hidreletrica-diario-mwmed.txt')
+        ];
+        $nuclear = [
+            'gwh' => storage_path('app/historico/ons/geracao/diario/nuclear-diario-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/diario/nuclear-diario-mwmed.txt')
+        ];
+        $solar = [
+            'gwh' => storage_path('app/historico/ons/geracao/diario/solar-diario-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/diario/solar-diario-mwmed.txt')
+        ];
+        $termica = [
+            'gwh' => storage_path('app/historico/ons/geracao/diario/termica-diario-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/diario/termica-diario-mwmed.txt')
+        ];
+        $total = [
+            'gwh' => storage_path('app/historico/ons/geracao/diario/total-diario-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/diario/total-diario-mwmed.txt')
+        ];
+        $sin = [
+            'mwmed' => [
+                'eolica' => storage_path('app/historico/ons/geracao/diario/eolica-mwmed.csv'),
+                'hidreletrica' => storage_path('app/historico/ons/geracao/diario/hidreletrica-mwmed.csv'),
+                'nuclear' => storage_path('app/historico/ons/geracao/diario/nuclear-mwmed.csv'),
+                'solar' => storage_path('app/historico/ons/geracao/diario/solar-mwmed.csv'),
+                'termica' => storage_path('app/historico/ons/geracao/diario/termica-mwmed.csv')
             ],
-            'hidreletrica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/diario/hidreletrica-diario-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/diario/hidreletrica-diario-mwmed.txt')
-            ],
-            'nuclear' => [
-                'gwh' => storage_path('app/historico/ons/geracao/diario/nuclear-diario-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/diario/nuclear-diario-mwmed.txt')
-            ],
-            'solar' => [
-                'gwh' => storage_path('app/historico/ons/geracao/diario/solar-diario-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/diario/solar-diario-mwmed.txt')
-            ],
-            'termica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/diario/termica-diario-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/diario/termica-diario-mwmed.txt')
-            ],
-            'total' => [
-                'gwh' => storage_path('app/historico/ons/geracao/diario/total-diario-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/diario/total-diario-mwmed.txt')
+            'gwh' => [
+                'eolica' => storage_path('app/historico/ons/geracao/diario/eolica-gwh.csv'),
+                'hidreletrica' => storage_path('app/historico/ons/geracao/diario/hidreletrica-gwh.csv'),
+                'nuclear' => storage_path('app/historico/ons/geracao/diario/nuclear-gwh.csv'),
+                'solar' => storage_path('app/historico/ons/geracao/diario/solar-gwh.csv'),
+                'termica' => storage_path('app/historico/ons/geracao/diario/termica-gwh.csv')
             ]
         ];
 
-        foreach ($files as $fonte => $unidades) {
-            foreach ($unidades as $unidade => $file) {
-                $rowData = file($file);
-                unset($rowData[0]);
-                unset($rowData[1]);
+        $data['eolica'] = $this->importExcelOns->import_historico_geracao_diario($eolica, 'eolica');
+        $data['hidreletrica'] = $this->importExcelOns->import_historico_geracao_diario($hidreletrica, 'hidreletrica');
+        $data['nuclear'] = $this->importExcelOns->import_historico_geracao_diario($nuclear, 'nuclear');
+        $data['solar'] = $this->importExcelOns->import_historico_geracao_diario($solar, 'solar');
+        $data['termica'] = $this->importExcelOns->import_historico_geracao_diario($termica, 'termica');
+        $data['total'] = $this->importExcelOns->import_historico_geracao_diario($total, 'total');
 
-                foreach ($rowData as $key => $item) {
-                    $linha[$fonte][$unidade] = explode(';', $rowData[$key]);
-
-                    if ($linha[$fonte][$unidade][0]) {
-                        $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('Y');
-                        $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('m'));
-                        $dia = Carbon::createFromFormat('d/m/Y H:i:s', $linha[$fonte][$unidade][0])->format('d');
-
-                        if (stripos(trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])), 'e-') !== false) {
-                            $numero = (float)explode('e', trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])))[0];
-                            $expoente = (float)explode('e', trim($this->regexOns->convert_str($linha[$fonte][$unidade][7])))[1];
-
-                            $geracao[$key][$fonte][$linha[$fonte][$unidade][1]][$unidade][$key] = $numero * pow((float)10, (float)$expoente);
-                        } else {
-                            $geracao[$key][$fonte][$linha[$fonte][$unidade][1]][$unidade] = trim($this->regexOns->convert_str($linha[$fonte][$unidade][7]));
-                        }
-
-                        $this->data['diario'][$ano][$mes][$dia] = $geracao[$key];
-                    }
-                }
-            }
-        }
-        foreach ($this->data['diario'] as $ano => $meses) {
-            foreach ($meses as $mes => $dias) {
-                foreach ($dias as $dia => $tipos) {
-                    $mwmed = 0;
-                    $gwh = 0;
-                    foreach ($tipos as $tipo => $regioes) {
-                        foreach ($regioes as $regiao => $unidades) {
-                            $gwh += (float)preg_replace('(,)', '.',$this->data['diario'][$ano][$mes][$dia][$tipo][$regiao]['gwh']);
-                            $mwmed += (float)preg_replace('(,)', '.',$this->data['diario'][$ano][$mes][$dia][$tipo][$regiao]['mwmed']);
-                        }
-                        $this->data['diario'][$ano][$mes][$dia][$tipo]['SIN']['gwh'] = $gwh;
-                        $this->data['diario'][$ano][$mes][$dia][$tipo]['SIN']['mwmed'] = $mwmed;
-                    }
-                }
+        foreach ($sin as $unidade =>$files) {
+            foreach ($files as $fonte => $file) {
+                $data['SIN'][$fonte] = $this->importExcelOns->import_historico_geracao_diario_sin($file, $unidade, $fonte);
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'geracao', $date, $this->data);
+        $this->data = array_merge(
+            $data['eolica'],
+            $data['hidreletrica'],
+            $data['nuclear'],
+            $data['solar'],
+            $data['termica'],
+            $data['total'],
+            $data['SIN']['eolica'],
+            $data['SIN']['hidreletrica'],
+            $data['SIN']['nuclear'],
+            $data['SIN']['solar'],
+            $data['SIN']['termica']
+        );
+
+        $this->util->enviaArangoDB('ons', 'geracao', $date, 'diario', $this->data);
     }
-
 
     public function historico_geracao_mensal()
     {
+        set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-        $files = [
-            'eolica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/mensal/eolica-mensal-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/mensal/eolica-mensal-mwmed.txt')
+        $eolica = [
+            'gwh' => storage_path('app/historico/ons/geracao/mensal/eolica-mensal-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/mensal/eolica-mensal-mwmed.txt')
+        ];
+        $hidreletrica = [
+            'gwh' => storage_path('app/historico/ons/geracao/mensal/hidreletrica-mensal-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/mensal/hidreletrica-mensal-mwmed.txt')
+        ];
+        $nuclear = [
+            'gwh' => storage_path('app/historico/ons/geracao/mensal/nuclear-mensal-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/mensal/nuclear-mensal-mwmed.txt')
+        ];
+        $solar = [
+            'gwh' => storage_path('app/historico/ons/geracao/mensal/solar-mensal-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/mensal/solar-mensal-mwmed.txt')
+        ];
+        $termica = [
+            'gwh' => storage_path('app/historico/ons/geracao/mensal/termica-mensal-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/mensal/termica-mensal-mwmed.txt')
+        ];
+        $total = [
+            'gwh' => storage_path('app/historico/ons/geracao/mensal/total-mensal-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/mensal/total-mensal-mwmed.txt')
+        ];
+        $sin = [
+            'mwmed' => [
+                'eolica' => storage_path('app/historico/ons/geracao/mensal/eolica-mwmed.csv'),
+                'hidreletrica' => storage_path('app/historico/ons/geracao/mensal/hidreletrica-mwmed.csv'),
+                'nuclear' => storage_path('app/historico/ons/geracao/mensal/nuclear-mwmed.csv'),
+                'solar' => storage_path('app/historico/ons/geracao/mensal/solar-mwmed.csv'),
+                'termica' => storage_path('app/historico/ons/geracao/mensal/termica-mwmed.csv')
             ],
-            'hidreletrica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/mensal/hidreletrica-mensal-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/mensal/hidreletrica-mensal-mwmed.txt')
-            ],
-            'nuclear' => [
-                'gwh' => storage_path('app/historico/ons/geracao/mensal/nuclear-mensal-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/mensal/nuclear-mensal-mwmed.txt')
-            ],
-            'solar' => [
-                'gwh' => storage_path('app/historico/ons/geracao/mensal/solar-mensal-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/mensal/solar-mensal-mwmed.txt')
-            ],
-            'termica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/mensal/termica-mensal-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/mensal/termica-mensal-mwmed.txt')
-            ],
-            'total' => [
-                'gwh' => storage_path('app/historico/ons/geracao/mensal/total-mensal-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/mensal/total-mensal-mwmed.txt')
+            'gwh' => [
+                'eolica' => storage_path('app/historico/ons/geracao/mensal/eolica-gwh.csv'),
+                'hidreletrica' => storage_path('app/historico/ons/geracao/mensal/hidreletrica-gwh.csv'),
+                'nuclear' => storage_path('app/historico/ons/geracao/mensal/nuclear-gwh.csv'),
+                'solar' => storage_path('app/historico/ons/geracao/mensal/solar-gwh.csv'),
+                'termica' => storage_path('app/historico/ons/geracao/mensal/termica-gwh.csv')
             ]
         ];
 
-        foreach ($files as $fonte => $unidades) {
-            foreach ($unidades as $unidade => $file) {
-                $rowData = file($file);
-                unset($rowData[0]);
-                unset($rowData[1]);
+        $data['eolica'] = $this->importExcelOns->import_historico_geracao_mensal($eolica, 'eolica');
+        $data['hidreletrica'] = $this->importExcelOns->import_historico_geracao_mensal($hidreletrica, 'hidreletrica');
+        $data['nuclear'] = $this->importExcelOns->import_historico_geracao_mensal($nuclear, 'nuclear');
+        $data['solar'] = $this->importExcelOns->import_historico_geracao_mensal($solar, 'solar');
+        $data['termica'] = $this->importExcelOns->import_historico_geracao_mensal($termica, 'termica');
+        $data['total'] = $this->importExcelOns->import_historico_geracao_mensal($total, 'total');
 
-                foreach ($rowData as $key => $item)
-                {
-                    $linha = explode(';', $rowData[$key]);
-
-                    if ($linha[0])
-                    {
-                        $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[2])->format('Y');
-                        $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[2])->format('m'));
-
-                        $this->data['mensal'][$ano][$mes][$fonte][$linha[1]][$unidade] = trim($this->regexOns->convert_str($linha[5]));
-                    }
-                }
-            }
-        }
-        foreach ($this->data['mensal'] as $ano => $meses) {
-            foreach ($meses as $mes => $tipos) {
-                $mwmed = 0;
-                $gwh = 0;
-                foreach ($tipos as $tipo => $regioes) {
-                    foreach ($regioes as $regiao => $unidades) {
-                        $gwh += (float)preg_replace('(,)', '.',$this->data['mensal'][$ano][$mes][$tipo][$regiao]['gwh']);
-                        $mwmed += (float)preg_replace('(,)', '.',$this->data['mensal'][$ano][$mes][$tipo][$regiao]['mwmed']);
-                    }
-                    $this->data['mensal'][$ano][$mes][$tipo]['SIN']['gwh'] = $gwh;
-                    $this->data['mensal'][$ano][$mes][$tipo]['SIN']['mwmed'] = $mwmed;
-                }
+        foreach ($sin as $unidade =>$files) {
+            foreach ($files as $fonte => $file) {
+                $data['SIN'][$fonte] = $this->importExcelOns->import_historico_geracao_mensal_sin($file, $unidade, $fonte);
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'geracao', $date, $this->data);
+        $this->data = array_merge(
+            $data['eolica'],
+            $data['hidreletrica'],
+            $data['nuclear'],
+            $data['solar'],
+            $data['termica'],
+            $data['total'],
+            $data['SIN']['eolica'],
+            $data['SIN']['hidreletrica'],
+            $data['SIN']['nuclear'],
+            $data['SIN']['solar'],
+            $data['SIN']['termica']
+        );
+
+        $this->util->enviaArangoDB('ons', 'geracao', $date, 'mensal', $this->data);
     }
 
 
     public function historico_geracao_anual()
     {
+        set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-        $files = [
-            'eolica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/anual/eolica-anual-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/anual/eolica-anual-mwmed.txt')
+        $eolica = [
+            'gwh' => storage_path('app/historico/ons/geracao/anual/eolica-anual-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/anual/eolica-anual-mwmed.txt')
+        ];
+        $hidreletrica = [
+            'gwh' => storage_path('app/historico/ons/geracao/anual/hidreletrica-anual-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/anual/hidreletrica-anual-mwmed.txt')
+        ];
+        $nuclear = [
+            'gwh' => storage_path('app/historico/ons/geracao/anual/nuclear-anual-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/anual/nuclear-anual-mwmed.txt')
+        ];
+        $solar = [
+            'gwh' => storage_path('app/historico/ons/geracao/anual/solar-anual-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/anual/solar-anual-mwmed.txt')
+        ];
+        $termica = [
+            'gwh' => storage_path('app/historico/ons/geracao/anual/termica-anual-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/anual/termica-anual-mwmed.txt')
+        ];
+        $total = [
+            'gwh' => storage_path('app/historico/ons/geracao/anual/total-anual-gwh.txt'),
+            'mwmed' => storage_path('app/historico/ons/geracao/anual/total-anual-mwmed.txt')
+        ];
+        $sin = [
+            'mwmed' => [
+                'eolica' => storage_path('app/historico/ons/geracao/anual/eolica-mwmed.csv'),
+                'hidreletrica' => storage_path('app/historico/ons/geracao/anual/hidreletrica-mwmed.csv'),
+                'nuclear' => storage_path('app/historico/ons/geracao/anual/nuclear-mwmed.csv'),
+                'solar' => storage_path('app/historico/ons/geracao/anual/solar-mwmed.csv'),
+                'termica' => storage_path('app/historico/ons/geracao/anual/termica-mwmed.csv')
             ],
-            'hidreletrica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/anual/hidreletrica-anual-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/anual/hidreletrica-anual-mwmed.txt')
-            ],
-            'nuclear' => [
-                'gwh' => storage_path('app/historico/ons/geracao/anual/nuclear-anual-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/anual/nuclear-anual-mwmed.txt')
-            ],
-            'solar' => [
-                'gwh' => storage_path('app/historico/ons/geracao/anual/solar-anual-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/anual/solar-anual-mwmed.txt')
-            ],
-            'termica' => [
-                'gwh' => storage_path('app/historico/ons/geracao/anual/termica-anual-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/anual/termica-anual-mwmed.txt')
-            ],
-            'total' => [
-                'gwh' => storage_path('app/historico/ons/geracao/anual/total-anual-gwh.txt'),
-                'mwmed' => storage_path('app/historico/ons/geracao/anual/total-anual-mwmed.txt')
+            'gwh' => [
+                'eolica' => storage_path('app/historico/ons/geracao/anual/eolica-gwh.csv'),
+                'hidreletrica' => storage_path('app/historico/ons/geracao/anual/hidreletrica-gwh.csv'),
+                'nuclear' => storage_path('app/historico/ons/geracao/anual/nuclear-gwh.csv'),
+                'solar' => storage_path('app/historico/ons/geracao/anual/solar-gwh.csv'),
+                'termica' => storage_path('app/historico/ons/geracao/anual/termica-gwh.csv')
             ]
         ];
 
-        foreach ($files as $fonte => $unidades) {
-            foreach ($unidades as $unidade => $file) {
-                $rowData = file($file);
-                unset($rowData[0]);
+        $data['eolica'] = $this->importExcelOns->import_historico_geracao_anual($eolica, 'eolica');
+        $data['hidreletrica'] = $this->importExcelOns->import_historico_geracao_anual($hidreletrica, 'hidreletrica');
+        $data['nuclear'] = $this->importExcelOns->import_historico_geracao_anual($nuclear, 'nuclear');
+        $data['solar'] = $this->importExcelOns->import_historico_geracao_anual($solar, 'solar');
+        $data['termica'] = $this->importExcelOns->import_historico_geracao_anual($termica, 'termica');
+        $data['total'] = $this->importExcelOns->import_historico_geracao_anual($total, 'total');
 
-                foreach ($rowData as $key => $item) {
-                    $linha = explode(';', $rowData[$key]);
-                    if ($linha[0]) {
-                        $this->data['anual'][$linha[0]][$fonte][$linha[1]][$unidade] = trim($this->regexOns->convert_str($linha[7]));
-                    }
-                }
-            }
-        }
-        foreach ($this->data['anual'] as $ano => $tipos) {
-            $mwmed = 0;
-            $gwh = 0;
-            foreach ($tipos as $tipo => $regioes) {
-                foreach ($regioes as $regiao => $unidades) {
-                    $gwh += (float)$this->data['anual'][$ano][$tipo][$regiao]['gwh'];
-                    $mwmed += (float)$this->data['anual'][$ano][$tipo][$regiao]['mwmed'];
-                }
-                $this->data['anual'][$ano][$tipo]['SIN']['gwh'] = $gwh;
-                $this->data['anual'][$ano][$tipo]['SIN']['mwmed'] = $mwmed;
+        foreach ($sin as $unidade =>$files) {
+            foreach ($files as $fonte => $file) {
+                $data['SIN'][$fonte] = $this->importExcelOns->import_historico_geracao_anual_sin($file, $unidade, $fonte);
             }
         }
 
-        $this->util->enviaArangoDB('ons', 'geracao', $date, $this->data);
+        $this->data = array_merge(
+            $data['eolica'],
+            $data['hidreletrica'],
+            $data['nuclear'],
+            $data['solar'],
+            $data['termica'],
+            $data['total'],
+            $data['SIN']['eolica'],
+            $data['SIN']['hidreletrica'],
+            $data['SIN']['nuclear'],
+            $data['SIN']['solar'],
+            $data['SIN']['termica']
+        );
+
+        $this->util->enviaArangoDB('ons', 'geracao', $date, 'anual', $this->data);
     }
 
 
     public function historico_ear_diario()
     {
+        set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
         $file = storage_path('app/historico/ons/ear/dia.csv');
@@ -726,11 +853,17 @@ class HistoricoOnsController extends Controller
             $ano = Carbon::createFromFormat('d/m/Y', $linha[0])->format('Y');
             $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y', $linha[0])->format('m'));
             $dia = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d');
-
-            $this->data['diario'][$linha[2]][$ano][$mes][$dia]['%ear_max'] = $this->regexOns->convert_str($linha[5]);
+//dd($linha);
+            $this->data[$key] = [
+                'ano' => $ano,
+                'mes' => $mes,
+                'dia' => $dia,
+                'subsistema' => $linha[2],
+                'valor' => $this->util->formata_valores(['%ear_max' => $this->regexOns->convert_str($linha[5])])
+            ];
         }
 
-        $this->util->enviaArangoDB('ons', 'ear', $date, $this->data);
+        $this->util->enviaArangoDB('ons', 'ear', $date, 'diario', $this->data);
     }
 
 
@@ -749,16 +882,18 @@ class HistoricoOnsController extends Controller
 
             $ano = Carbon::createFromFormat('d/m/Y', $linha[0])->format('Y');
             $inicio = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d/m');
-            $fim = Carbon::createFromFormat('d/m/Y', $linha[0])->format('dd/m');
+            $fim = Carbon::createFromFormat('d/m/Y', $linha[0])->format('d/m');
 
-            $this->data['semanal'][$linha[1]][$ano][$key] = [
+            $this->data[$key] = [
+                'ano' => $ano,
                 'inicio' => $inicio,
                 'fim' => $fim,
-                'valor' => $this->regexOns->convert_str($linha[6])]
-            ;
+                'subsistema' => $linha[1],
+                'valor' => $this->util->formata_valores(['%ear_max' => [$this->regexOns->convert_str($linha[6])]])
+            ];
         }
 
-        $this->util->enviaArangoDB('ons', 'ear', $date, $this->data);
+        $this->util->enviaArangoDB('ons', 'ear', $date, 'semanal', $this->data);
     }
 
 
@@ -778,16 +913,20 @@ class HistoricoOnsController extends Controller
             $ano = explode(' de ', $linha[0])[1];
             $mes = explode(' de ', $linha[0])[0];
 
-            $this->data['mensal'][$linha[1]][$ano][$mes]['%ear_max'] = $this->regexOns->convert_str($linha[6]);
+            $this->data[$key] = [
+                'ano' => $ano,
+                'mes' => $mes,
+                'subsistema' =>$linha[1],
+                'valor' => $this->util->formata_valores(['%ear_max' => $this->regexOns->convert_str($linha[6])])
+            ];
         }
 
-        $this->util->enviaArangoDB('ons', 'ear', $date, $this->data);
+        $this->util->enviaArangoDB('ons', 'ear', $date, 'mensal',$this->data);
     }
 
-    public function historico_cdre()
+    public function historico_cdre_cronograma()
     {
         set_time_limit(-1);
-
         $date = Util::getDateIso();
 
         $data = [];
@@ -821,10 +960,48 @@ class HistoricoOnsController extends Controller
                     $file = storage_path('app/historico/ons/pmo_cdre/cronograma/' . $arquivo);
                 }
                 if ($file) {
-                    $data['mensal']['expansao'][$ano][$mes] = $this->importExcelOns->historico_pmo_cronograma($file, $ano, $mes);
+                    $data[] = $this->importExcelOns->historico_pmo_cronograma($file, $ano, $mes);
                 }
             }
         }
-        $this->util->enviaArangoDB('ons', 'pmo', $date, $data);
+        $this->util->enviaArangoDB('ons', 'pmo', $date, 'mensal', $data['expansao']);
+    }
+
+
+    public function historico_cdre_memorial()
+    {
+        set_time_limit(-1);
+        $date = Util::getDateIso();
+
+        $data = [];
+        $nome_arquivos = [];
+
+        $meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+        $meses_indice = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        $anos = ['2017', '2018'];
+
+        foreach ($anos as $ano) {
+            foreach ($meses as $chave => $mes) {
+                $nome_arquivos[$ano][$meses_indice[$chave]] = $mes .'-'. $ano . '.xlsx';
+            }
+        }
+        unset($nome_arquivos['2018']['Outubro']);
+        unset($nome_arquivos['2018']['Novembro']);
+        unset($nome_arquivos['2018']['Dezembro']);
+
+        foreach ($nome_arquivos as $ano => $arquivos) {
+            foreach ($arquivos as $mes => $arquivo) {
+                $file = 'storage/app/historico/ons/pmo_cdre/memorial/' . $arquivo;
+                if ($ano === 2017) {
+                    if ($this->util->mesMesXXportugues($mes) <= 4) {
+                        $data['data'][] = $this->importExcelOns->histoemorial($file, 1, $ano, $mes);
+                    }
+                } else {
+                    $data['data'][] = $this->importExcelOns->historico_pmo_memorial($file, 2, $ano, $mes);
+                }
+            }
+        }
+
+        $this->util->enviaArangoDB('ons', 'pmo', $date, 'mensal',  $data);
     }
 }

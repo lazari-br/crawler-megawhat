@@ -65,10 +65,37 @@ class ProtheusController extends Controller
             $resultPld = $this->utilProtheus->curlProtheus($url_base, $headersPld, $rawPld);
             $pld = $this->regexProtheus->getPld($resultPld);
 
-            $data['de_'. $dataInicio. '_até_'. $dataFim][$submercado] = $pld;
+            $data[] = [
+                'inicio' => Carbon::createFromFormat('Ymd', $dataInicio)->format('d/m/Y'),
+                'fim' => Carbon::createFromFormat('Ymd', $dataFim)->format('d/m/Y'),
+                'subsistema' => $submercado,
+                'valor' => $this->util->formata_valores(['pld' => $pld])
+            ];
         }
 
-        $this->util->enviaArangoDB('protheus', 'pld', $date, $data);
+        $this->util->enviaArangoDB('protheus', 'pld', $date, 'mensal', $data);
+    }
+
+    public function historico_pld_protheus()
+    {
+        set_time_limit(-1);
+        $rowData = $this->util->import(1, 0, '/var/www/html/crawler-megawhat/storage/app/historico/historico_pld.xlsx');
+        $data =[];
+
+        foreach ($rowData as $key => $linha) {
+            $data[$key] = [
+                'subsistema' => trim($rowData[$key]['submercado']),
+                'inicio' => Carbon::createFromFormat('d/m/Y', $rowData[$key]['inicio'])->format('d/m/Y'),
+                'fim' => Carbon::createFromFormat('d/m/Y', $rowData[$key]['fim'])->format('d/m/Y'),
+                'valor' => [
+                    'pesado' => $rowData[$key]['valor_pesado'],
+                    'medio' => $rowData[$key]['valor_medio'],
+                    'leve' => $rowData[$key]['valor_leve']
+                ]
+            ];
+        }
+
+        $this->util->enviaArangoDB('protheus', 'pld', Util::getDateIso(), 'semanal', $data);
     }
 
 }

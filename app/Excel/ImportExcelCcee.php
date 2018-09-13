@@ -44,7 +44,7 @@ class ImportExcelCcee
         return $this->startRow = config(['excel.import.startRow' => $row]);
     }
 
-    public function dado_porSemanaEpatamar($file, $sheet, $nomeTabela)
+    public function dado_porSemanaEpatamar($file, $sheet, $nomeTabela, $array)
     {
         $data = [];
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -68,21 +68,26 @@ class ImportExcelCcee
                 return response()->json(['Error:' => 'A importação da tabela'.$nomeTabela.' não foi realizada corretamente!']);
             }
 
-            $data[$rowData[$key]['submercado']][$rowData[$key]['no_semana']][$rowData[$key]['patamar']]['MWh'] =
-                $this->util->formata_valores_mwh(array_combine($months, array_slice($rowData[$key], 3, 12)));
-            $data[$rowData[$key]['submercado']][$rowData[$key]['no_semana']][$rowData[$key]['patamar']]['MWmed'] =
-                $this->util->formata_valores(array_combine($months, array_slice($rowData[$key], 3, 12)));
+            $data[$key] = array_merge($array,
+                [
+                'submercado' => $rowData[$key]['submercado'],
+                'semana' => $rowData[$key]['no_semana'],
+                'patamar' => $rowData[$key]['patamar'],
+                'valor' => [
+                    'mwh' => $this->util->formata_valores_mwh(array_combine($months, array_slice($rowData[$key], 3, 12))),
+                    'mwmed' => $this->util->formata_valores(array_combine($months, array_slice($rowData[$key], 3, 12)))
+                ]
+            ]);
         }
 
         return $data;
     }
 
-    public function dado_padrao($file, $sheet, $nome_tabela, $primeira_coluna)
+    public function dado_padrao($file, $sheet, $nome_tabela, $primeira_coluna, $array)
     {
         $data = [];
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
 
         $setInicio = $this->util->import(12, $sheet, $file);
         $inicio = $this->utilCcee->encontra_tabela($setInicio, $nome_tabela)[0];
@@ -93,21 +98,25 @@ class ImportExcelCcee
             if ($rowData[$chave][$primeira_coluna] === null){
                 break;
             }
-
             if (count($rowData[$chave]) !== 14){
                 return response()->json(['Error:' => 'A importação da tabela '.$nome_tabela.' não foi realizada corretamente!']);
             }
 
+            $indice = array_keys($linha)[1];
             $valores = array_combine($months, array_slice($linha, 2, 12));
             $arrClasse['MWh'] = $this->util->formata_valores_mwh($valores);
             $arrClasse['MWmed'] = $this->util->formata_valores($valores);
-            $data[$rowData[$chave][$primeira_coluna]] = $arrClasse;
+            $data[$chave] = array_merge($array,
+                [
+                $indice => $rowData[$chave][$primeira_coluna],
+                'valor'=> $arrClasse
+            ]);
         }
 
         return $data;
     }
 
-    public function dado_sem_conta($file, $sheet, $nome_tabela, $primeira_coluna)
+    public function dado_sem_conta($file, $sheet, $nome_tabela, $primeira_coluna, $array)
     {
         $data = [];
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -124,15 +133,19 @@ class ImportExcelCcee
                 return response()->json(['Error:' => 'A importação da tabela '.$nome_tabela.' não foi realizada corretamente!']);
             }
 
+            $indice = array_keys($linha)[1];
             $valores = array_combine($months, array_slice($linha, 2, 12));
             $arrClasse = $this->util->formata_valores($valores);
-            $data[$rowData[$chave][$primeira_coluna]] = $arrClasse;
+            $data[$chave] = array_merge($array, [
+                $indice => $rowData[$chave][$primeira_coluna],
+                'valor'=> $arrClasse
+            ]);
         }
 
         return $data;
     }
 
-    public function montante_de_contrato_por_comprador_e_vendedor($file, $sheet, $nomeTabela)
+    public function montante_de_contrato_por_comprador_e_vendedor($file, $sheet, $nomeTabela, $array)
     {
         $data = [];
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -158,13 +171,17 @@ class ImportExcelCcee
 
             $valores = array_combine($months, array_slice($rowData[$chave], 3));
             $arrClasse = $this->util->formata_valores_mwh($valores);
-            $data['Vendedor'][$rowData[$chave]['classe_do_vendedor']]['Comprador'][$rowData[$chave]['classe_do_comprador']] = $arrClasse;
+            $data[$chave] = array_merge($array, [
+                'Classe do Vendedor' => $rowData[$chave]['classe_do_vendedor'],
+                'Classe do Comprador' => $rowData[$chave]['classe_do_comprador'],
+                'valor' => $arrClasse
+            ]);
         }
 
         return $data;
     }
 
-    public function montante_de_contrato_por_modalidade_e_desconto($file, $sheet, $nome_tabela)
+    public function montante_de_contrato_por_modalidade_e_desconto($file, $sheet, $nome_tabela, $array)
     {
         $data = [];
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -189,7 +206,6 @@ class ImportExcelCcee
                 $rowData = $this->util->celulaMesclada($rowData, 'modalidade_energia', 1);
             }
         }
-
         foreach ($rowData as $keys => $info){
 
             if (count($rowData[$keys]) !== 16){
@@ -198,13 +214,18 @@ class ImportExcelCcee
 
             $valores = array_combine($months, array_slice($rowData[$keys], 4));
             $array = $this->util->formata_valores_mwh($valores);
-            $data[$rowData[$keys]['modalidade_energia']][$rowData[$keys]['percentual_de_desconto_do_vendedor']] = $array;
+            $data[$keys] = array_merge($array, [
+                'modalidade de energia' => $rowData[$keys]['modalidade_energia'],
+                'percentual de desconto do vendedor' => $rowData[$keys]['percentual_de_desconto_do_vendedor'],
+                'classe do produtor' => $rowData[$keys]['classe_comprador'],
+                'valor' => $array
+            ]);
         }
 
         return $data;
     }
 
-    public function ess($file, $sheet, $primeira_tabela, $segunda_tabela)
+    public function ess($file, $sheet, $primeira_tabela, $segunda_tabela, $array)
     {
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -236,14 +257,14 @@ class ImportExcelCcee
                 $data[$mes] = null;
             }
         }
-        $resultado['R$/MWh'] = $data;
-        $resultado['R$'] = $this->util->formata_valores($dividendo);
+        $resultado['R$/MWh'] = array_merge($array, $data);
+        $resultado['R$'] = array_merge($array, $this->util->formata_valores($dividendo));
 
         return $resultado;
     }
 
 
-    public function eer($file, $sheet, $primeira_tabela, $segunda_tabela)
+    public function eer($file, $sheet, $primeira_tabela, $segunda_tabela, $array)
     {
         $months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -267,8 +288,8 @@ class ImportExcelCcee
                 $data[$mes] = null;
             }
         }
-        $resultado['R$/MWh']  = $data;
-        $resultado['R$'] = $this->util->formata_valores($dividendo);
+        $resultado['R$/MWh']  = array_merge($array, $data);
+        $resultado['R$'] = array_merge($array, $this->util->formata_valores($dividendo));
 
         return $resultado;
     }

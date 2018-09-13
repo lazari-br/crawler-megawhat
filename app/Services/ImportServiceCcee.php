@@ -20,7 +20,7 @@ class ImportServiceCcee
         $this->importExcelCcee = $importExcelCcee;
     }
 
-    public function importInfoGeral($resultado,
+    public function importInfoGeral($historico,
                                     $date,
                                     $sheet_consumo,
                                     $sheet_geracao,
@@ -30,99 +30,154 @@ class ImportServiceCcee
                                     $sheet_encargos,
                                     $sheet_reservas)
     {
-        $path = storage_path('app') . '/' . $resultado['geral'][$date]['file'][0]; // para atualização mensal
-//        $path = $historico; // para obtenção do histórico
+//        $path = storage_path('app') . '/' . $resultado['geral'][$date]['file'][0]; // para atualização mensal
+        $path = $historico; // para obtenção do histórico
 
-        // 003 Consumo; Tabela 001
-        $resultado['data']['Consumo']['no CG por submercado/semana/patamar'] = $this->importExcelCcee->dado_porSemanaEpatamar(
+         //003 Consumo; Tabela 001
+        $resultado['data'] = $this->importExcelCcee->dado_porSemanaEpatamar(
             $path,
             $sheet_consumo,
-            'Consumo no centro de gravidade por submercado/semana/patamar');
+            'Consumo no centro de gravidade por submercado/semana/patamar',
+            array(
+                'tipo' => 'consumo',
+                'abertura' => 'no CG por submercado/semana/patamar'
+            ));
 
         // 003 Consumo; Tabela 002
-        $resultado['data']['Consumo']['no CG por classe de agente'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
+        $resultado['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
             'Consumo no centro de gravidade por classe de agente',
-            'classe_do_agente');
+            'classe_do_agente',
+            array(
+                'tipo' => 'consumo',
+                'abertura' => 'no CG por classe de agente'
+            ));
 
         // 003 Consumo; Tabela 003
-
-        $resultado['data']['Consumo']['no CG por ambiente de comercialização'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
+        $resultado['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
             'Consumo no centro de gravidade por ambiente de comercialização',
-            'ambiente');
+            'ambiente',
+            array(
+                'tipo' => 'consumo',
+                'abertura' => 'no CG por ambiente de comercialização'
+            ));
 
         // 003 Consumo; Tabela 004
-        $resultado[$date]['data']['Consumo']['consumidores livres no CG por ramo de atividade'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
+        $resultado[$date]['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
             'Consumo de consumidores livres e especiais, no centro de gravidade, por ramo de atividade',
-            'ramo_de_atividade');
+            'ramo_de_atividade',
+            array('tipo' => 'consumo',
+                'abertura' => 'consumidores livres no CG por ramo de atividade'
+            ));
 
         // 003 Consumo; Tabela 006
-        $resultado['data']['Consumo']['no PC por submercado/semana/patamar'] = $this->importExcelCcee->dado_porSemanaEpatamar(
+        $resultado['data'] = $this->importExcelCcee->dado_porSemanaEpatamar(
             $path,
             $sheet_consumo,
-            'Consumo da geração no centro de gravidade - MW médios');
+            'Consumo da geração no centro de gravidade - MW médios',
+            array(
+                'tipo' => 'consumo',
+                'abertura' => 'no PC por submercado/semana/patamar'
+            ));
 
         // 003 Consumo; Tabela 007
-        $resultado['data']['Consumo']['consumidores livres no PC por ramo de atividade'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
+        $resultado['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
             'Consumo de consumidores livres e especiais, no ponto de conexão, por ramo de atividade',
-            'ramo_de_atividade');
+            'ramo_de_atividade',
+            array(
+                'tipo' => 'consumo',
+                'abertura' => 'consumidores livres no PC por ramo de atividade'
+            ));
 
         // 003 Consumo; Tabela 008
-        $resultado['data']['Consumo']['autoprodutores no PC por ramo de atividade'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
+        $resultado['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_consumo,
             'Consumo de autoprodutores, no ponto de conexão, por ramo de atividade',
-            'ramo_de_atividade');
+            'ramo_de_atividade',
+            array(
+                'tipo' => 'consumo',
+                'abertura' => 'autoprodutores no PC por ramo de atividade'
+            ));
 
         // 001 Geração; Tabela 001
-        $resultado['data']['Geração']['histórico de geração no CG por fonte'] = $this->importExcelCcee->dado_padrao($path, $sheet_geracao,
+        $resultado['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_geracao,
             'Histórico de geração no centro de gravidade por fonte',
-            'fonte_de_geracao');
+            'fonte_de_geracao',
+            array(
+                'tipo' => 'geracao',
+                'abertura' => 'no centro de gravidade por fonte'
+            ));
 
         // 001 Geração; Tabela 007
-        $resultado['data']['Geração']['histórico de geração no CG por submercado/semana/patamar'] = $this->importExcelCcee->dado_porSemanaEpatamar(
+        $resultado['data'] = $this->importExcelCcee->dado_porSemanaEpatamar(
             $path,
             $sheet_geracao,
-            'Histórico de Geração no centro de gravidade por submercado/semana/patamar');
+            'Histórico de Geração no centro de gravidade por submercado/semana/patamar',
+            array(
+                'tipo' => 'geracao',
+                'abertura' => 'no centro de gravidade por submercado/semana/patamar'
+            ));
 
         // Demais Dados; Tabela 001
-        $resultado['data']['número de agentes participantes da contabilização por classe'] = $this->importExcelCcee->dado_sem_conta($path, $sheet_demais_dados,
+        $resultado['data'] = $this->importExcelCcee->dado_sem_conta($path, $sheet_demais_dados,
             'Número de agentes participantes da contabilização por classe',
-            'classe');
+            'classe',
+            array(
+                'abertura' => 'número de agentes participantes da contabilização por classe'
+            ));
 
         // 005 Contratos; Tabela 001
-        $resultado['data']['Dados de Contrato']['montates no CG por tipo'] = $this->importExcelCcee->dado_padrao($path, $sheet_contratos,
+        $resultado['data'] = $this->importExcelCcee->dado_padrao($path, $sheet_contratos,
             'Montantes de contratos no centro de gravidade por tipo',
-            'tipo_de_contrato');
+            'tipo_de_contrato',
+            array(
+                'tipo' => 'dados de contrato',
+                'abertura' => 'montates no CG por tipo'
+            ));
 
         // 005 Contratos; Tabela 003
-        $resultado['data']['Dados de Contrato']['montates no CG por classe do comprador e do vendedor'] = $this->importExcelCcee->montante_de_contrato_por_comprador_e_vendedor(
+        $resultado['data'] = $this->importExcelCcee->montante_de_contrato_por_comprador_e_vendedor(
             $path,
             $sheet_contratos,
-            'Montantes de contratos no centro de gravidade por classe do comprador e do vendedor');
+            'Montantes de contratos no centro de gravidade por classe do comprador e do vendedor',
+            array(
+                'tipo' => 'dados de contrato',
+                'abertura' => 'montates no CG por classe do comprador e do vendedor'
+            ));
 
         // 022 Incentivadas; Tabela 003
-        $resultado['data']['Incentivadas']['montante de contratos de compra'] = $this->importExcelCcee->montante_de_contrato_por_modalidade_e_desconto(
+        $resultado['data'] = $this->importExcelCcee->montante_de_contrato_por_modalidade_e_desconto(
             $path,
             $sheet_incentivadas,
-            'Montantes de contratos de compra de Energia Incentivada e convencional especial de consumidores livres, especiais e autoprodutores');
+            'Montantes de contratos de compra de Energia Incentivada e convencional especial de consumidores livres, especiais e autoprodutores',
+            array(
+                'tipo' => 'incentivadas',
+                'abertura' => 'montante de contratos de compra'
+            ));
 
         // 008 Encargos; Tabela 001, 009
-        $resultado['data']['ESS'] = $this->importExcelCcee->ess($path, $sheet_encargos,
+        $resultado['data'] = $this->importExcelCcee->ess($path, $sheet_encargos,
             'Recebimentos de encagos de serviços do sistema por tipo',
-            ' Consumo de Referência para Pagamentos de Encargos de Serviços do Sistema');
+            ' Consumo de Referência para Pagamentos de Encargos de Serviços do Sistema',
+            array(
+               'tipo' => 'ess'
+            ));
 
         // 023 Reserva; Tabela 007, 008
-        $resultado['data']['EER']['R$'] = $this->importExcelCcee->eer($path, $sheet_reservas,
+        $resultado['data'] = $this->importExcelCcee->eer($path, $sheet_reservas,
             'Encargo de Energia de Reserva - R$',
-            'Consumo de Referência para Pagamento de Encargo de Energia de Reserva - MW'
-        );
+            'Consumo de Referência para Pagamento de Encargo de Energia de Reserva - MW',
+            array(
+                'tipo' => 'eer'
+            ));
 
         return $resultado;
     }
 
-    public function importInfoIndividual($resultado, $sheet, $date)
+    public function importInfoIndividual($historico, $sheet, $date)
     {
         // 002 Usinas
         $resultado['data'] = $this->importExcelCcee->geracao_usinas(
-            storage_path('app') . '/' . $resultado['individual'][$date][0],
+//            storage_path('app') . '/' . $resultado['individual'][$date][0],
+            $historico, // para histórico
             $sheet,
             'Informações de garantia física, capacidade e geração das usinas por mês');
 

@@ -87,9 +87,9 @@ class OnsController extends Controller
                 ->download('');
             $url_download[$date_format]['url_download_semanal'] = $this->storageDirectory->saveDirectory('ons/semanal/' . $date_format . '/', $url_download_xls_name, $results_download);
 
-            $resultado['semanal'] = $this->importExcelOns->importSdroSemanal($url_download, $date_format, $carbon);
+            $resultado = $this->importExcelOns->importSdroSemanal($url_download, $date_format, $carbon);
 
-            $this->util->enviaArangoDB('ons', 'ons_semanal', $date, $resultado);
+            $this->util->enviaArangoDB('ons', 'ons_semanal', $date, 'semanal', $resultado);
 
             return response()->json([
                 'site' => 'http://sdro.ons.org.br/SDRO/semanal/',
@@ -134,13 +134,13 @@ class OnsController extends Controller
                 ->withContentType('application/xlsx')
                 ->download('');
 
-            $url_download['diario']['file'] = $this->storageDirectory->saveDirectory('ons/diaria/' . $date_format . '/', $url_download_xls_name, $results_download);
+            $url_download['file'] = $this->storageDirectory->saveDirectory('ons/diaria/' . $date_format . '/', $url_download_xls_name, $results_download);
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
             // Importação dos dados das planilhas
-            $url_download['diario']['data'] = $this->importExcelOns->importSdroDiario($url_download, $date_format, $carbon);
+            $url_download['data'] = $this->importExcelOns->importSdroDiario($url_download, $date_format, $carbon);
 
-            $this->util->enviaArangoDB('ons', 'ons_boletim_diario', $date_format, $url_download);
+            $this->util->enviaArangoDB('ons', 'ons_boletim_diario', $date_format, 'diario', $url_download);
 
             return response()->json([
                 'site' => 'http://sdro.ons.org.br/SDRO/DIARIO/',
@@ -308,9 +308,9 @@ class OnsController extends Controller
         $pathNsimulada = storage_path('app/ons/pmo/'. $date. '/'.
             $this->utilOns->encontra_arquivo($diretorio, 'Simuladas'));
 
-        $resultado['mensal'] = $this->importExcelOns->importPmoCdre($pathNsimulada, $pathCronograma);
+        $resultado = $this->importExcelOns->importPmoCdre($pathNsimulada, $pathCronograma);
 
-        $this->util->enviaArangoDB('ons', 'usinas', $date, $resultado);
+        $this->util->enviaArangoDB('ons', 'usinas', $date, 'mensal', $resultado);
         }
 
 

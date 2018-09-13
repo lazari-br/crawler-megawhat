@@ -97,7 +97,7 @@ class CceeController extends Controller
             ];
         }
 
-        $this->util->enviaArangoDB('ccee', 'PLD', $date, array_values($atual['Mensal'])[0]);
+        $this->util->enviaArangoDB('ccee', 'pld', $date, 'mensal', array_values($atual['Mensal'])[0]);
 
         return response()->json([
             'site' => 'https://www.ccee.org.br//preco/precoMedio.do/',
@@ -182,7 +182,7 @@ class CceeController extends Controller
 
             // ------------------------------------------------------------------------Crud--------------------------------------------------------------------------------------------------
 
-            $this->util->enviaArangoDB('ccee', 'PLD', $date, $resultados);
+            $this->util->enviaArangoDB('ccee', 'PLD', $date, 'semanal', $resultados);
 
             return response()->json([
                 'site' => 'https://www.ccee.org.br/preco_adm/precos/historico/semanal/',
@@ -212,7 +212,6 @@ class CceeController extends Controller
 
         $this->client->request('GET', $url_base_1, array('allow_redirects' => true));
         $crawler = $this->client->request('POST', $url_base_2, array('allow_redirects' => true, 'aba' => 'aba_info_mercado_mensal'));
-
 
         $cookieJar = $this->client->getCookieJar();
         $get_response_site = $this->client->getResponse();
@@ -264,10 +263,10 @@ class CceeController extends Controller
             foreach ($resultado as $chave => $item)
             {
                 if ($chave === 'geral') {
-                    $this->util->enviaArangoDB('ccee', 'geral', $date, $resultado['geral']);
+                    $this->util->enviaArangoDB('ccee', 'geral', $date, 'mensal', $resultado['geral']);
                 }
                 else{
-                    $this->util->enviaArangoDB('ccee', 'individual', $date, $resultado['individual']);
+                    $this->util->enviaArangoDB('ccee', 'individual', $date, 'mensal',   $resultado['individual']);
                 }
             }
 
@@ -287,7 +286,7 @@ class CceeController extends Controller
     }
 
 
-    public function deckNewwave()
+    public function deckNewave()
     {
         $date = Carbon::now()->format('Ym');
         $date_format = Carbon::now()->format('m-Y');
@@ -341,10 +340,10 @@ class CceeController extends Controller
         //Exportação para o banco
         foreach ($dados as $info => $dado) {
             if ($info === 'Newave') {
-                $this->util->enviaArangoDB('ccee', 'newave', $date_banco, $dados['Newave']);
+                $this->util->enviaArangoDB('ccee', 'newave', $date_banco, 'mensal', $dados['Newave']);
             }
             else {
-                $this->util->enviaArangoDB('ccee', 'decomp', $date_banco, $dados['Decomp']);
+                $this->util->enviaArangoDB('ccee', 'decomp', $date_banco, 'mensal', $dados['Decomp']);
             }
         }
     }
@@ -362,15 +361,14 @@ class CceeController extends Controller
         $result_status = $this->client->getResponse();
 
         if ($result_status->getStatus() == 200) {
-
             $url_leilao = $this->regexCcee->getUrlLeilao($crawler);
             $url_download = $url_base . $url_leilao;
             $download = $this->util->download($url_download, 'xlsx');
-            $resultado['mensal']['file'] = $this->storageDirectory->saveDirectory('ccee/mensal/leilao/' . $date_format . '/', 'leilao_resultado_consolidado_' . $date . '.xlsx', $download);
+            $resultado['file'] = $this->storageDirectory->saveDirectory('ccee/mensal/leilao/' . $date_format . '/', 'leilao_resultado_consolidado_' . $date . '.xlsx', $download);
 
-            $resultado['mensal']['data'] = $this->importServiceCcee->leiloes($resultado);
+            $resultado['data'] = $this->importServiceCcee->leiloes($resultado);
 
-            $this->util->enviaArangoDB('ccee', 'leiloes', $date_format, $resultado);
+            $this->util->enviaArangoDB('ccee', 'leiloes', $date_format, 'mensal', $resultado);
 
             return response()->json([
                 'site' => 'https://www.ccee.org.br/',

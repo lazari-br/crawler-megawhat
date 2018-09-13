@@ -1223,94 +1223,57 @@ class ImportExcelOns
         return $data;
     }
 
-    public function pmoNaoSimuladasExistente($file, $sheet)
+    public function pmoNaoSimuladasExistente($file, $sheet, $ano = null, $mes = null)
     {
-        $date = Carbon::now()->format('Y');
-;
-        $indice = ['Tipo',
-                   'Subsistema',
-                   'Usina'];
+//        $date = Carbon::now()->format('Y');
+        $date = $ano; //para histórico
 
-        $meses = ['Janeiro',
-                  'Fevereiro',
-                  'Março',
-                  'Abril',
-                  'Maio',
-                  'Junho',
-                  'Julho',
-                  'Agosto',
-                  'Setembro',
-                  'Outubro',
-                  'Novembro',
-                  'Dezembro'];
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-        $this->setConfigStartRow(1);
-        $rowData = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(9999999);
-            })
-            ->get()
-            ->toArray();
+        $rowData = $this->util->import(1, $sheet, $file);
 
         foreach ($rowData as $key=>$value)
         {
-            $usina = array_combine($indice, [$value['tipo'], $value['subsistema'], $value['usina']]);
-
-            $dataValor['Valores'][$date] = array_combine($meses, array_slice($value, 3, 12));
-            $dataValor['Valores'][$date + 1] = array_combine($meses, array_slice($value, 15, 12));
-            $dataValor['Valores'][$date + 2] = array_combine($meses, array_slice($value, 27, 12));
-            $dataValor['Valores'][$date + 3] = array_combine($meses, array_slice($value, 39, 12));
-            $dataValor['Valores'][$date + 4] = array_combine($meses, array_slice($value, 51, 12));
-
-            $data[$value['usina']] = array_merge($usina, $dataValor);
+            for ($i = 0; $i < 5; $i++) {
+                $data[] = [
+                    'tipo' => array_values($value)[0],
+                    'subsistema' => array_values($value)[1],
+                    'usina' => array_values($value)[2],
+                    'ano' => $date + $i,
+                    'mes' => $mes,
+                    'valor' => $this->util->formata_valores(array_combine($meses, array_slice($value, 3 + (12 * $i), 12)))
+                ];
+            }
         }
+
         return $data;
     }
 
-    public function pmoNaoSimuladasExpansao($file, $sheet)
+    public function pmoNaoSimuladasExpansao($file, $sheet, $ano = null, $mes = null)
     {
         $data = [];
-        $date = Carbon::now()->format('Y');
+//        $date = Carbon::now()->format('Y');
+        $date = $ano; //para histórico
 
-        $indice = ['Tipo',
-                   'Origem',
-                   'Subsistema',
-                   'Usina',
-                   'Merc.'];
+        $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-        $meses = ['Janeiro',
-                  'Fevereiro',
-                  'Março',
-                  'Abril',
-                  'Maio',
-                  'Junho',
-                  'Julho',
-                  'Agosto',
-                  'Setembro',
-                  'Outubro',
-                  'Novembro',
-                  'Dezembro'];
-
-        $this->setConfigStartRow(1);
-        $rowData = \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader){
-                $reader->limitRows(9999999);
-            })
-            ->get()
-            ->toArray();
-
+        $rowData = $this->util->import(1, $sheet, $file);
         foreach ($rowData as $key=>$value)
         {
-            $usina = array_combine($indice, [$value['tipo'], $value['origem'], $value['subsistema'], $value['usina'], $value['merc.']]);
-
-            $dataValor['Valores'][$date] = array_combine($meses, array_slice($value, 5, 12));
-            $dataValor['Valores'][$date + 1] = array_combine($meses, array_slice($value, 17, 12));
-            $dataValor['Valores'][$date + 2] = array_combine($meses, array_slice($value, 29, 12));
-            $dataValor['Valores'][$date + 3] = array_combine($meses, array_slice($value, 41, 12));
-            $dataValor['Valores'][$date + 4] = array_combine($meses, array_slice($value, 53, 12));
-
-            $data[$value['usina']] = array_merge($usina, $dataValor);
+            for ($i = 0; $i < 5; $i++) {
+                $data[] = [
+                    'tipo' => array_values($value)[0],
+                    'origem' => array_values($value)[1],
+                    'subsistema' => array_values($value)[2],
+                    'usina' => array_values($value)[3],
+                    'merc' => array_values($value)[4],
+                    'ano' => $date + $i,
+                    'mes' => $mes,
+                    'valor' => $this->util->formata_valores(array_combine($meses, array_slice($value, 5 + (12 * $i), 12)))
+                ];
+            }
         }
+
         return $data;
     }
 
@@ -1337,30 +1300,38 @@ class ImportExcelOns
                     foreach ($indiceMescla as $mescla) {
                         $rowData = $this->util->celulaMesclada($rowData, $mescla, 1);
                     }
-                    $linha[$key] = array_combine($indice, $rowData[$key]);
 
+                    $linha[$key] = array_combine($indice, $rowData[$key]);
                     $linha = $this->utilOns->explode_ug_pmo($linha, $key);
 
                     if (isset($rowData[$key]['Combustivel'])) {
-                        $data[strtoupper($usina)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Combustível']][$key] =
-                            [
-                                'UG' => $linha[$key]['UG'],
-                                'MW' => $linha[$key]['MW'],
-                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
-                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                        $data[$key] = [
+                            'Tipo' => strtoupper($usina),
+                            'Usina' => $linha[$key]['Usina'],
+                            'Situação' => $linha[$key]['Situação'],
+                            'Potência Total (MW)' => $linha[$key]['Potência Total (MW)'],
+                            'Combustível' => $linha[$key]['Combustível'],
+                            'UG' => $linha[$key]['UG'],
+                            'MW' => $linha[$key]['MW'],
+                            'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                            'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
                             ];
                     } else {
-                        $data[strtoupper($usina.$sheet)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$key] =
-                            [
-                                'UG' => $linha[$key]['UG'],
-                                'MW' => $linha[$key]['MW'],
-                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
-                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
-                            ];
+                        $data[$key] = [
+                            'Tipo' => strtoupper($usina),
+                            'Usina' => $linha[$key]['Usina'],
+                            'Situação' => $linha[$key]['Situação'],
+                            'Potência Total (MW)' => $linha[$key]['Potência Total (MW)'],
+                            'UG' => $linha[$key]['UG'],
+                            'MW' => $linha[$key]['MW'],
+                            'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                            'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                        ];
                     }
                 }
             }
         }
+
         return $data;
     }
 
@@ -1396,22 +1367,31 @@ class ImportExcelOns
                     $linha = $this->utilOns->explode_ug_pmo($linha, $key);
 
                     if (isset($rowData[$key]['Combustivel'])) {
-                        $data[strtoupper($usina)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Combustível']][$linha[$key]['Leilão']][$key] =
-                            [
-                                'UG' => $linha[$key]['UG'],
-                                'MW' => $linha[$key]['MW'],
-                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
-                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
-                            ];
+                        $data[$key] = [
+                            'Tipo' => strtoupper($usina),
+                            'Usina' => $linha[$key]['Usina'],
+                            'Situação' => $linha[$key]['Situação'],
+                            'Potência Total (MW)' => $linha[$key]['Potência Total (MW)'],
+                            'Combustível' => $linha[$key]['Combustível'],
+                            'Leilão' => $linha[$key]['Leilão'],
+                            'UG' => $linha[$key]['UG'],
+                            'MW' => $linha[$key]['MW'],
+                            'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                            'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                        ];
                     }
                     else {
-                        $data[strtoupper($usina.$sheet)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] =
-                            [
-                                'UG' => $linha[$key]['UG'],
-                                'MW' => $linha[$key]['MW'],
-                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
-                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
-                            ];
+                        $data[$key] = [
+                            'Tipo' => strtoupper($usina),
+                            'Usina' => $linha[$key]['Usina'],
+                            'Situação' => $linha[$key]['Situação'],
+                            'Potência Total (MW)' => $linha[$key]['Potência Total (MW)'],
+                            'Leilão' => $linha[$key]['Leilão'],
+                            'UG' => $linha[$key]['UG'],
+                            'MW' => $linha[$key]['MW'],
+                            'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                            'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                        ];
                     }
                 }
             }
@@ -1446,29 +1426,207 @@ class ImportExcelOns
 
                     $linha = $this->utilOns->explode_ug_pmo($linha, $key);
                     if (isset($rowData[$key]['Combustivel'])) {
-                        $data[strtoupper($usina)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Combustível']][$linha[$key]['Leilão']][$key] =
-                            [
-                                'UG' => $linha[$key]['UG'],
-                                'MW' => $linha[$key]['MW'],
-                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
-                                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
-                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
-                            ];
+                        $data[$key] = [
+                            'Tipo' => strtoupper($usina),
+                            'Usina' => $linha[$key]['Usina'],
+                            'Situação' => $linha[$key]['Situação'],
+                            'Potência Total (MW)' => $linha[$key]['Potência Total (MW)'],
+                            'Combustível' => $linha[$key]['Combustível'],
+                            'Leilão' => $linha[$key]['Leilão'],
+                            'UG' => $linha[$key]['UG'],
+                            'MW' => $linha[$key]['MW'],
+                            'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                            'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                            'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                        ];
                     }
                     else {
-                        $data[strtoupper($usina.$sheet)][$linha[$key]['Usina']][$linha[$key]['Situação']][$linha[$key]['Potência Total (MW)']][$linha[$key]['Leilão']][$key] =
-                            [
-                                'UG' => $linha[$key]['UG'],
-                                'MW' => $linha[$key]['MW'],
-                                'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
-                                'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
-                                'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
-                            ];
+                        $data[$key] = [
+                            'Tipo' => strtoupper($usina),
+                            'Usina' => $linha[$key]['Usina'],
+                            'Situação' => $linha[$key]['Situação'],
+                            'Potência Total (MW)' => $linha[$key]['Potência Total (MW)'],
+                            'Leilão' => $linha[$key]['Leilão'],
+                            'UG' => $linha[$key]['UG'],
+                            'MW' => $linha[$key]['MW'],
+                            'Data de entrada em operação - DMSE' => $linha[$key]['Data de entrada em operação - DMSE'],
+                            'Data de entrada em operação - PMO' => $linha[$key]['Data de entrada em operação - PMO'],
+                            'Diferença em relação ao anterior' => $linha[$key]['Diferença em relação ao anterior']
+                        ];
                     }
                 }
             }
         }
         return $data;
     }
+
+    public function import_historico_geracao_diario($file, $fonte, $unidade)
+    {
+        $rowData = file($file);
+        unset($rowData[0]);
+        unset($rowData[1]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $linha = explode(';', $rowData[$key]);
+
+            if ($linha[0]) {
+                $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('Y');
+                $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('m'));
+                $dia = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('d');
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'dia' => $dia,
+                    'subsitema' => $linha[1],
+                    'fonte' => $fonte,
+                    'valor' => [
+                        $unidade => (float)$this->regexOns->convert_str($linha[7])
+                    ]
+                ];
+            }
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_diario_sin($file, $fonte, $unidade)
+    {
+        $rowData = file($file);
+        unset($rowData[0]);
+        unset($rowData[1]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $linha = explode(';', $rowData[$key]);
+
+            if ($linha[0]) {
+                $ano = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('Y');
+                $mes = $this->util->mesMesportugues(Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('m'));
+                $dia = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('d');
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'dia' => $dia,
+                    'subsitema' => 'SIN',
+                    'fonte' => $fonte,
+                    'valor' => [
+                        $unidade => (float)$this->regexOns->convert_str($linha[7])
+                    ]
+                ];
+            }
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_mensal($file, $fonte, $unidade)
+    {
+        $rowData = file($file);
+        unset($rowData[0]);
+        unset($rowData[1]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $linha = explode(';', $rowData[$key]);
+
+            if ($linha[0]) {
+                $ano = explode(' de ', $linha[0])[1];
+                $mes = explode(' de ', $linha[0])[0];
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsitema' => $linha[1],
+                    'fonte' => $fonte,
+                    'valor' => [
+                        $unidade => (float)$this->regexOns->convert_str($linha[5])
+                    ]
+                ];
+            }
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_mensal_sin($file, $fonte, $unidade)
+    {
+        $rowData = file($file);
+        unset($rowData[0]);
+        unset($rowData[1]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $linha = explode(';', $rowData[$key]);
+
+            if ($linha[0]) {
+                $ano = explode(' de ', $linha[2])[1];
+                $mes = explode(' de ', $linha[2])[0];
+                $data[$key] = [
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'subsitema' => 'SIN',
+                    'fonte' => $fonte,
+                    'valor' => [
+                        $unidade => (float)$this->regexOns->convert_str($linha[9])
+                    ]
+                ];
+            }
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_anual($file, $fonte, $unidade)
+    {
+        $rowData = file($file);
+        unset($rowData[0]);
+        unset($rowData[1]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $linha = explode(';', $rowData[$key]);
+
+            if ($linha[0]) {
+                $ano = $linha[0];
+                $data[$key] = [
+                    'ano' => $ano,
+                    'subsitema' => $linha[1],
+                    'fonte' => $fonte,
+                    'valor' => [
+                        $unidade => (float)$this->regexOns->convert_str($linha[7])
+                    ]
+                ];
+            }
+        }
+
+        return $data;
+    }
+
+    public function import_historico_geracao_anual_sin($file, $fonte, $unidade)
+    {
+        $rowData = file($file);
+        unset($rowData[0]);
+        unset($rowData[1]);
+
+        $data = [];
+        foreach ($rowData as $key => $item) {
+            $linha = explode(';', $rowData[$key]);
+
+            if ($linha[0]) {
+                $ano = $linha[0];
+                $data[$key] = [
+                    'ano' => $ano,
+                    'subsitema' => 'SIN',
+                    'fonte' => $fonte,
+                    'valor' => [
+                        $unidade => (float)$this->regexOns->convert_str($linha[9])
+                    ]
+                ];
+            }
+        }
+
+        return $data;
+    }
+
 
 }

@@ -67,7 +67,7 @@ class EletroBrasController extends Controller
 
             $resultado = $this->storageDirectory->saveDirectory('eletrobras/'.$ano.'/', 'CDE-'.$ano.'-Movimentação_Finaceira.xlsx', $url_download);
 
-            $this->util->enviaArangoDB('eletrobras', 'cde', $date, $resultado);
+            $this->util->enviaArangoDB('eletrobras', 'cde', $date, 'mensal', $resultado);
 
             return response()->json([
                 'site' => 'http://eletrobras.com',

@@ -67,20 +67,20 @@ class Util
       return $date->format('Y-m');
     }
 
-    public function enviaArangoDB($fonte, $info, $date, $dados)
+    public function enviaArangoDB($fonte, $info, $date, $periodicidade, $dados)
     {
         if (isset($dados)) {
 
             try {
                 if ($this->arangoDb->collectionHandler()->has($fonte)) {
 
-                    $this->arangoDb->documment()->set($info, [$date, $dados]);
+                    $this->arangoDb->documment()->set($info, ['generated' => $date, $periodicidade => $dados]);
                     $this->arangoDb->documentHandler()->save($fonte, $this->arangoDb->documment());
                 } else {
                     $this->arangoDb->collection()->setName($fonte);
                     $this->arangoDb->collectionHandler()->create($this->arangoDb->collection());
 
-                    $this->arangoDb->documment()->set($info, [$date, $dados]);
+                    $this->arangoDb->documment()->set($info, ['generated' => $date, $periodicidade => $dados]);
                     $this->arangoDb->documentHandler()->save($fonte, $this->arangoDb->documment());
                 }
 
@@ -265,18 +265,18 @@ dd($data);
     public function formata_valores_mwh($arr)
     {
         $daysInMonths = [
-            '0' => 31,
-            '1' => Carbon::parse()->daysInMonth,
-            '2' => 31,
-            '3' => 30,
-            '4' => 31,
-            '5' => 30,
-            '6' => 31,
-            '7' => 31,
-            '8' => 30,
-            '9' => 31,
-            '10' => 30,
-            '11' => 31
+            'Janeiro' => 31,
+            'Fevereiro' => Carbon::parse()->daysInMonth,
+            'Março' => 31,
+            'Abril' => 30,
+            'Maio' => 31,
+            'Junho' => 30,
+            'Julho' => 31,
+            'Agosto' => 31,
+            'Setembro' => 30,
+            'Outubro' => 31,
+            'Novembro' => 30,
+            'Dezembro' => 31
         ];
 
         $arrPatamar = [];
@@ -284,6 +284,36 @@ dd($data);
             $total = $value;
             if (!is_null($value)) {
                 $total_round = round($value * 24 * $daysInMonths[$key], 3);
+                $total = number_format($total_round, 10, ",", ".");
+            }
+            $arrPatamar[$key] = $total;
+        });
+
+        return $arrPatamar;
+    }
+
+    public function formata_valores_mwmed($arr)
+    {
+        $daysInMonths = [
+            'Janeiro' => 31,
+            'Fevereiro' => Carbon::parse()->daysInMonth,
+            'Março' => 31,
+            'Abril' => 30,
+            'Maio' => 31,
+            'Junho' => 30,
+            'Julho' => 31,
+            'Agosto' => 31,
+            'Setembro' => 30,
+            'Outubro' => 31,
+            'Novembro' => 30,
+            'Dezembro' => 31
+        ];
+
+        $arrPatamar = [];
+        array_walk($arr, function ($value, $key) use ($daysInMonths, &$arrPatamar) {
+            $total = $value;
+            if (!is_null($value)) {
+                $total_round = round($value /(24 * $daysInMonths[$key]), 3);
                 $total = number_format($total_round, 10, ",", ".");
             }
             $arrPatamar[$key] = $total;
