@@ -91,10 +91,19 @@ class EpeConsumoController extends Controller
 
         $file = '/var/www/html/crawler-megawhat/storage/app/historico/MERCADO MENSAL PARA DOWNLOAD COLADO.xls';
 
-        $dados['data']['residencial'] = $this->importExcelEpe->epe_historico($file, 1, 'residencial');
-        $dados['data']['total'] = $this->importExcelEpe->epe_historico($file, 0, 'total');
+        $dados['data'][] = $this->importExcelEpe->epe_historico($file, 1, 'residencial');
+        $dados['data'][] = $this->importExcelEpe->epe_historico($file, 0, 'total');
 
-        $this->util->enviaArangoDB('epe', 'consumo', $date, 'mensal', $dados);
+        $data = [];
+        foreach ($dados as $dado) {
+            foreach ($dado as $info) {
+                foreach ($info as $item) {
+                    $data[] = $item;
+                }
+            }
+        }
+
+        $this->util->enviaArangoDB('epe', 'consumo', $date, 'mensal', $data);
     }
 
 

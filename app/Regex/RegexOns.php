@@ -95,4 +95,10 @@ class RegexOns extends AbstractRegex
         return $this->regexFirst($regex, $page_acesso, 0);
     }
 
+    public function getPercentEna($page_acesso)
+    {
+        $regex = '/(.*?)%/';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+
 }

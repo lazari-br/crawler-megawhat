@@ -42,4 +42,55 @@ class RegexSdroDiario extends AbstractRegex
         $result = explode('-',$data);
         return $result[2].'_'.$result[1].'_'.$result[0];
     }
+
+    public function getUsina($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getCodigo ($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getOrdem($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getInflex($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getRestricao($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getForaDeMerito($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getEnergiaReposicao($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getGarantia($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getExport($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
+    public function getVerificado($page_acesso)
+    {
+        $regex = '/\<td.height=17[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>[^>]+>([^<]+)+</';
+        return $this->regexFirst($regex, $page_acesso, 0);
+    }
 }

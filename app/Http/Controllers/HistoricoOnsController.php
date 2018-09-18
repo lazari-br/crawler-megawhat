@@ -12,7 +12,8 @@ use Crawler\Util\Util;
 use Crawler\Util\UtilOns;
 use Crawler\Regex\RegexMltEnas;
 use Crawler\Model\ArangoDb;
-
+use Ixudra\Curl\Facades\Curl;
+use Crawler\Model\Ena;
 
 class HistoricoOnsController extends Controller
 {
@@ -27,6 +28,7 @@ class HistoricoOnsController extends Controller
     private $util;
     private $utilOns;
     private $data;
+    private $modelEna;
 
 
     public function __construct(RegexSdroSemanal $regexSdroSemanal,
@@ -37,6 +39,7 @@ class HistoricoOnsController extends Controller
                                 RegexSdroDiario $regexSdroDiario,
                                 Util $util,
                                 UtilOns $utilOns,
+                                Ena $modelEna,
                                 ImportServiceONS $importExcelOns
     )
     {
@@ -49,23 +52,20 @@ class HistoricoOnsController extends Controller
         $this->importExcelOns = $importExcelOns;
         $this->util= $util;
         $this->utilOns= $utilOns;
+        $this->modelEna= $modelEna;
     }
 
 
     public function historico_enas_mensal()
     {
-        $data = [];
-        $tratar = [];
-        $ena =[];
-        $date = Carbon::now()->format('Y-m-d');
-
         $files = [
-            '%mlt' => storage_path('/app/historico/ons/enas/mensal/mensal-%mlt.xlsx'),
-            '%mlt armazenavel' => storage_path('/app/historico/ons/enas/mensal/mensal-%mlt-armazenavel.xlsx'),
+            'percent_mlt' => storage_path('/app/historico/ons/enas/mensal/mensal-%mlt.xlsx'),
+            'percent_mlt_armazenavel' => storage_path('/app/historico/ons/enas/mensal/mensal-%mlt-armazenavel.xlsx'),
             'mwmed' => storage_path('/app/historico/ons/enas/mensal/mensal-mwmed.xlsx'),
-            'mwmed armazenavel' => storage_path('/app/historico/ons/enas/mensal/mensal-mwmed-armazenavel.xlsx')
+            'mwmed_armazenavel' => storage_path('/app/historico/ons/enas/mensal/mensal-mwmed-armazenavel.xlsx')
         ];
 
+        $data = [];
         foreach ($files as $tipo => $file)
         {
             $rowData = file($files[$tipo]);
@@ -76,62 +76,51 @@ class HistoricoOnsController extends Controller
                 $linha = explode(';', $rowData[$key]);
                 $ano = explode(' de ', $linha[0])[1];
                 $mes = explode(' de ', $linha[0])[0];
-
-                $ena[$key][$tipo] = $this->regexOns->convert_str($linha[7]);
-
-                $tratar[$ano][$mes][trim($linha[1])] = $ena[$key];
-
-                $data[$key] = [
-                    'ano' => $ano,
-                    'mes' => $mes,
-                    'subsistema' => trim($linha[1]),
-                    'valor' => $this->util->formata_valores($ena[$key])
-                ];
+                $data[$ano][$mes][trim($linha[1])][$tipo] = (float)$this->regexOns->convert_str($linha[7]);
             }
         }
-        foreach ($tratar as $ano => $meses) {
+        foreach ($data as $ano => $meses) {
             foreach ($meses as $mes => $regioes) {
                 $mwmed = 0;
                 $percent = 0;
-                foreach ($regioes as $regiao => $array) {
-                    foreach ($array as $unidade => $valor) {
-                        if ($unidade === 'mwmed') {
-                            $mwmed += (float)preg_replace('(,)', '.', $tratar[$ano][$mes][$regiao][$unidade]);
-                            $tratar[$ano][$mes]['SIN'][$unidade] = $mwmed;
-                        }  elseif ($unidade === '%mlt') {
-                            $percent += ((float)preg_replace('(,)', '.', $tratar[$ano][$mes][$regiao]['%mlt']) *
-                                (float)preg_replace('(,)', '.', $tratar[$ano][$mes][$regiao]['mwmed']));
-                        }
-                    }
+                foreach ($regioes as $regiao => $unidades) {
+                    Ena::insert([
+                        'fonte' => 'ons',
+                        'frequencia' => 'mensal',
+                        'subsistema' => $regiao,
+                        'ano' => $ano,
+                        'mes' => $mes,
+                        'mwmed' => $unidades['mwmed'],
+                        'mwmed_armazenavel' => $unidades['mwmed_armazenavel'],
+                        'percent_mlt' => $unidades['percent_mlt'],
+                        'percent_mlt_armazenavel' => $unidades['percent_mlt_armazenavel']
+                    ]);
+                    $mwmed += $data[$ano][$mes][$regiao]['mwmed'];
+                    $percent += ($data[$ano][$mes][$regiao]['percent_mlt'] * $data[$ano][$mes][$regiao]['mwmed']);
                 }
-                $data[] = [
+                Ena::insert([
+                    'fonte' => 'ons',
+                    'frequencia' => 'mensal',
+                    'subsistema' => 'sin',
                     'ano' => $ano,
                     'mes' => $mes,
-                    'subsistema' => 'SIN',
-                    'valor' => $this->util->formata_valores([
-                        '%mlt' => (float)$percent / (float)$mwmed
-                    ])
-                ];
+                    'mwmed' => $mwmed,
+                    'percent_mlt' => $percent / $mwmed
+                ]);
             }
         }
-
-        $this->util->enviaArangoDB('ons', 'ena', $date, 'mensal', $data);
     }
 
     public function historico_enas_anual()
     {
-        $data = [];
-        $tratar = [];
-        $ena =[];
-        $date = Carbon::now()->format('Y-m-d');
-
         $files = [
-            '%mlt' => storage_path('/app/historico/ons/enas/anual/anual-%mlt.xlsx'),
-            '%mlt armazenavel' => storage_path('/app/historico/ons/enas/anual/anual-%mlt-armazenavel.xlsx'),
+            'percent_mlt' => storage_path('/app/historico/ons/enas/anual/anual-%mlt.xlsx'),
+            'percent_mlt_armazenavel' => storage_path('/app/historico/ons/enas/anual/anual-%mlt-armazenavel.xlsx'),
             'mwmed' => storage_path('/app/historico/ons/enas/anual/anual-mwmed.xlsx'),
-            'mwmed armazenavel' => storage_path('/app/historico/ons/enas/anual/anual-mwmed-armazenavel.xlsx')
+            'mwmed_armazenavel' => storage_path('/app/historico/ons/enas/anual/anual-mwmed-armazenavel.xlsx')
         ];
 
+        $data = [];
         foreach ($files as $tipo => $file)
         {
             $rowData = file($files[$tipo]);
@@ -140,175 +129,152 @@ class HistoricoOnsController extends Controller
             foreach ($rowData as $key => $item)
             {
                 $linha = explode(';', $rowData[$key]);
-
-                $ena[$key][$tipo] = $this->regexOns->convert_str($linha[6]);
-
-                $tratar[trim($linha[0])][trim($linha[1])] = $ena[$key];
-
-                $data[$key] = [
-                    'ano' => trim($linha[0]),
-                    'subsistema' => trim($linha[1]),
-                    'valor' => $this->util->formata_valores($ena[$key])
-                ];
+                $data[trim($linha[0])][trim($linha[1])][$tipo] = (float)$this->regexOns->convert_str($linha[6]);
             }
         }
-        foreach ($tratar as $ano => $regioes) {
+        foreach ($data as $ano => $regioes) {
             $mwmed = 0;
             $percent = 0;
-            foreach ($regioes as $regiao=> $array) {
-                foreach ($array as $unidade => $valor) {
-                    if ($unidade === 'mwmed') {
-                        $mwmed += (float)preg_replace('(,)', '.', $tratar[$ano][$regiao][$unidade]);
-                        $tratar[$ano]['SIN'][$unidade] = $mwmed;
-                    } elseif ($unidade === '%mlt') {
-                        $percent += ((float)preg_replace('(,)', '.',$tratar[$ano][$regiao]['%mlt']) *
-                            (float)preg_replace('(,)', '.', $tratar[$ano][$regiao]['mwmed']));
-                    }
-                }
+            foreach ($regioes as $regiao => $unidades) {
+                Ena::insert([
+                    'fonte' => 'ons',
+                    'frequencia' => 'anual',
+                    'subsistema' => $regiao,
+                    'ano' => $ano,
+                    'mwmed' => $unidades['mwmed'],
+                    'mwmed_armazenavel' => $unidades['mwmed_armazenavel'],
+                    'percent_mlt' => $unidades['percent_mlt'],
+                    'percent_mlt_armazenavel' => $unidades['percent_mlt_armazenavel']
+                    ]);
+                $mwmed += $data[$ano][$regiao]['mwmed'];
+                $percent += ($data[$ano][$regiao]['percent_mlt'] * $data[$ano][$regiao]['mwmed']);
             }
-            $data[] = [
+            Ena::insert([
+                'fonte' => 'ons',
+                'frequencia' => 'anual',
+                'subsistema' => 'sin',
                 'ano' => $ano,
-                'subsistema' => 'SIN',
-                'valor' => $this->util->formata_valores(['%mlt' => ((float)$percent / (float)$mwmed)])
-            ];
+                'mwmed' => $mwmed,
+                'percent_mlt' => $percent/$mwmed
+            ]);
         }
-
-        $this->util->enviaArangoDB('ons', 'ena', $date, 'anual', $data);
     }
 
     public function historico_enas_semanal()
     {
-        $data = [];
-        $ena =[];
-        $tratar =[];
-        $date = Carbon::now()->format('Y-m-d');
-
+        set_time_limit(-1);
         $files = [
-            '%mlt' => storage_path('/app/historico/ons/enas/semanal/semanal-%mlt.xlsx'),
-            '%mlt armazenavel' => storage_path('/app/historico/ons/enas/semanal/semanal-%mlt-armazenavel.xlsx'),
+            'percent_mlt' => storage_path('/app/historico/ons/enas/semanal/semanal-%mlt.xlsx'),
+            'percent_mlt_armazenavel' => storage_path('/app/historico/ons/enas/semanal/semanal-%mlt-armazenavel.xlsx'),
             'mwmed' => storage_path('/app/historico/ons/enas/semanal/semanal-mwmed.xlsx'),
-            'mwmed armazenavel' => storage_path('/app/historico/ons/enas/semanal/semanal-mwmed-armazenavel.xlsx')
+            'mwmed_armazenavel' => storage_path('/app/historico/ons/enas/semanal/semanal-mwmed-armazenavel.xlsx')
         ];
 
-        foreach ($files as $tipo => $file)
-        {
+        $data = [];
+        foreach ($files as $tipo => $file) {
             $rowData = file($files[$tipo]);
             unset($rowData[0]);
 
-            foreach ($rowData as $key => $item)
-            {
+            foreach ($rowData as $key => $item) {
                 $linha = explode(';', $rowData[$key]);
 
-                $carbon_inicio = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0]);
-                $ano_inicio = $carbon_inicio->format('Y');
-                $date_inicio = $carbon_inicio->format('d/m');
+                $inicio = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0])->format('Ymd');
+                $fim = Carbon::createFromFormat('d/m/Y', $linha[2])->format('Ymd');
 
-                $carbon_fim = Carbon::createFromFormat('d/m/Y', $linha[2]);
-                $date_fim = $carbon_fim->format('d/m');
-
-                $ena[$key][$tipo] = $this->regexOns->convert_str($linha[7]);
-
-                $tratar[$ano_inicio][$date_inicio.'*'.$date_fim][trim($linha[1])] = $ena[$key];
-
-                $data[$key] = [
-                    'ano' => $ano_inicio,
-                    'subsistema' => trim($linha[1]),
-                    'inicio' => $date_inicio,
-                    'fim' => $date_fim,
-                    'valor' => $this->util->formata_valores($ena[$key])
-                ];
+                $data[$inicio.'-'.$fim][trim($linha[1])][$tipo] = (float)$this->regexOns->convert_str($linha[7]);
             }
         }
-        foreach ($tratar as $ano => $inicio)  {
-            foreach ($inicio as $semana => $regioes) {
-                $mwmed = 0;
-                $percent = 0;
-                foreach ($regioes as $regiao => $array) {
-                    $mwmed += (float)preg_replace('(,)', '.', $array['mwmed']);
-                    $percent += (float)preg_replace('(,)', '.', $array['%mlt']) *
-                        (float)preg_replace('(,)', '.', $array['mwmed']);
-                }
-                $data[] = [
-                    'ano' => $ano,
-                    'subsistema' => 'SIN',
-                    'inicio' => explode('*', $semana)[0],
-                    'fim' => explode('*', $semana)[1],
-                    'valor' => $this->util->formata_valores(['%mlt' => ((float)$percent / (float)$mwmed)])
-                ];
+        foreach ($data as $date => $regioes) {
+            $mwmed = 0;
+            $percent = 0;
+            $comeco = explode('-', $date)[0];
+            $final = explode('-', $date)[1];
+            foreach ($regioes as $regiao => $unidades) {
+                Ena::insert([
+                    'fonte' => 'ons',
+                    'frequencia' => 'semanal',
+                    'subsistema' => $regiao,
+                    'inicio' => $comeco,
+                    'fim' => $final,
+                    'mwmed' => $unidades['mwmed'],
+                    'mwmed_armazenavel' => $unidades['mwmed_armazenavel'],
+                    'percent_mlt' => $unidades['percent_mlt'],
+                    'percent_mlt_armazenavel' => $unidades['percent_mlt_armazenavel']
+                ]);
+                $mwmed += $data[$date][$regiao]['mwmed'];
+                $percent += ($data[$date][$regiao]['percent_mlt'] * $data[$date][$regiao]['mwmed']);
             }
+            Ena::insert([
+                'fonte' => 'ons',
+                'frequencia' => 'semanal',
+                'subsistema' => 'sin',
+                'inicio' => $comeco,
+                'fim' => $final,                'mwmed' => $mwmed,
+                'percent_mlt' => $percent/$mwmed
+            ]);
         }
-
-        $this->util->enviaArangoDB('ons', 'ena', $date, 'semanal', $data);
     }
 
     public function historico_enas_diario()
     {
-        $data = [];
-        $tratar = [];
-        $ena =[];
-        $date = Carbon::now()->format('Y-m-d');
-
+        set_time_limit(-1);
         $files = [
-            '%mlt' => storage_path('/app/historico/ons/enas/diario/diario-%mlt.xlsx'),
-            '%mlt armazenavel' => storage_path('/app/historico/ons/enas/diario/diario-%mlt-armazenavel.xlsx'),
+            'percent_mlt' => storage_path('/app/historico/ons/enas/diario/diario-%mlt.xlsx'),
+            'percent_mlt_armazenavel' => storage_path('/app/historico/ons/enas/diario/diario-%mlt-armazenavel.xlsx'),
             'mwmed' => storage_path('/app/historico/ons/enas/diario/diario-mwmed.xlsx'),
-            'mwmed armazenavel' => storage_path('/app/historico/ons/enas/diario/diario-mwmed-armazenavel.xlsx')
+            'mwmed_armazenavel' => storage_path('/app/historico/ons/enas/diario/diario-mwmed-armazenavel.xlsx')
         ];
 
-        foreach ($files as $tipo => $file)
-        {
+        $data = [];
+        foreach ($files as $tipo => $file) {
             $rowData = file($files[$tipo]);
             unset($rowData[0]);
 
-            foreach ($rowData as $key => $item)
-            {
+            foreach ($rowData as $key => $item) {
                 $linha = explode(';', $rowData[$key]);
 
                 $carbon = Carbon::createFromFormat('d/m/Y H:i:s', $linha[0]);
-                $ano_inicio = $carbon->format('Y');
-                $mes_inicio = $this->util->mesMesportugues($carbon->format('m'));
-                $dia_inicio = $carbon->format('d');
+                $ano = $carbon->format('Y');
+                $mes = $this->util->mesMesportugues($carbon->format('m'));
+                $dia = $carbon->format('d');
 
-                $ena[$key][$tipo] = $this->regexOns->convert_str($linha[7]);
-
-                $tratar[$ano_inicio][$mes_inicio][$dia_inicio][trim($linha[1])] = $ena[$key];
-                $data[$key] = [
-                    'ano' => $ano_inicio,
-                    'mes' => $mes_inicio,
-                    'dia' => $dia_inicio,
-                    'subsistema' => trim($linha[1]),
-                    'valor' => $this->util->formata_valores($ena[$key])
-                ];
+                $data[$ano][$mes][$dia][trim($linha[1])][$tipo] = (float)$this->regexOns->convert_str($linha[7]);
             }
         }
-        foreach ($tratar as $ano => $meses) {
+        foreach ($data as $ano => $meses) {
             foreach ($meses as $mes => $dias) {
                 foreach ($dias as $dia => $regioes) {
                     $mwmed = 0;
                     $percent = 0;
-                    foreach ($regioes as $regiao => $array) {
-                        foreach ($array as $unidade => $valor) {
-                            if ($unidade === 'mwmed') {
-                                $mwmed += (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao][$unidade]);
-                                $tratar[$ano][$mes][$dia]['SIN'][$unidade] = $mwmed;
-                            } elseif ($unidade === '%mlt') {
-                                $percent += ((float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao]['%mlt']) *
-                                    (float)preg_replace('(,)', '.',$tratar[$ano][$mes][$dia][$regiao]['mwmed']));
-                            }
-                        }
+                    foreach ($regioes as $regiao => $unidades) {
+                        Ena::insert([
+                            'fonte' => 'ons',
+                            'frequencia' => 'diario',
+                            'subsistema' => $regiao,
+                            'ano' => $ano,
+                            'mes' => $mes,
+                            'dia' => $dia,
+                            'mwmed' => $unidades['mwmed'],
+                            'mwmed_armazenavel' => $unidades['mwmed_armazenavel'],
+                            'percent_mlt' => $unidades['percent_mlt'],
+                            'percent_mlt_armazenavel' => $unidades['percent_mlt_armazenavel']
+                        ]);
+                        $mwmed += $data[$ano][$mes][$dia][$regiao]['mwmed'];
+                        $percent += ($data[$ano][$mes][$dia][$regiao]['percent_mlt'] * $data[$ano][$mes][$dia][$regiao]['mwmed']);
                     }
-                    $data[] = [
+                    Ena::insert([
+                        'fonte' => 'ons',
+                        'frequencia' => 'diario',
+                        'subsistema' => 'sin',
                         'ano' => $ano,
                         'mes' => $mes,
                         'dia' => $dia,
-                        'subsistema' => 'SIN',
-                        'valor' => $this->util->formata_valores(['%mlt' => (float)$percent / (float)$mwmed])
-                    ];
+                        'mwmed' => $mwmed,
+                        'percent_mlt' => $percent / $mwmed
+                    ]);
                 }
             }
         }
-
-        $this->util->enviaArangoDB('ons', 'ena', $date, 'diario', $data);
     }
 
     public function historico_carga_anual()
@@ -994,7 +960,7 @@ class HistoricoOnsController extends Controller
                 $file = 'storage/app/historico/ons/pmo_cdre/memorial/' . $arquivo;
                 if ($ano === 2017) {
                     if ($this->util->mesMesXXportugues($mes) <= 4) {
-                        $data['data'][] = $this->importExcelOns->histoemorial($file, 1, $ano, $mes);
+                        $data['data'][] = $this->importExcelOns->historico_pmo_memorial($file, 1, $ano, $mes);
                     }
                 } else {
                     $data['data'][] = $this->importExcelOns->historico_pmo_memorial($file, 2, $ano, $mes);
@@ -1003,5 +969,114 @@ class HistoricoOnsController extends Controller
         }
 
         $this->util->enviaArangoDB('ons', 'pmo', $date, 'mensal',  $data);
+    }
+
+    public function historico_sdro_semanal()
+    {
+        $parametro = Carbon::createFromFormat('Y_m_d', '2017_01_28');
+        $diferenca = (float)$parametro->diffInDays(Carbon::createFromFormat('Ymd', '20180818'))/7;
+
+        for ($i = 1; $i <= $diferenca; $i++)
+        {
+            $date_inicial = $parametro->format('Y_m_d');
+            $inicio = $parametro->format('d/m/Y');
+            $date_final = $parametro->addDays(6)->format('Y_m_d');
+            $fim = $parametro->addDays(6)->format('d/m/Y');
+
+            $date = $date_inicial . '_' . $date_final;
+            $parametro = $parametro->addDays(1);
+
+            $response = Curl::to('http://sdro.ons.org.br/SDRO/semanal/' . $date . '/HTML/06_MotivoDespachoSemanal.html')->get();
+            $linhas = explode('<DIV align=left', $response);
+            unset($linhas[0]);
+
+            foreach ($linhas as $key => $linha) {
+                $this->data[] = [
+                    'usina' => $this->regexSdroSemanal->getUsina($linha),
+                    'inicio' => $inicio,
+                    'fim' => $fim,
+                    'valor' => [
+                        'mwmed' => $this->util->formata_valores([
+                            'potencia instalada' => (float)$this->regexSdroSemanal->getPotencia($linha),
+                            'ordem de merito' => (float)$this->regexSdroSemanal->getOrdem($linha),
+                            'inflex.' => (float)$this->regexSdroSemanal->getInflex($linha),
+                            'restricao eletrica' => (float)$this->regexSdroSemanal->getRestricao($linha),
+                            'geracao fora de merito' => (float)$this->regexSdroSemanal->getForaDeMerito($linha),
+                            'energia de reposicao' => (float)$this->regexSdroSemanal->getEnergiaReposicao($linha),
+                            'garantia energetica' => (float)$this->regexSdroSemanal->getGarantia($linha),
+                            'export.' => (float)$this->regexSdroSemanal->getExport($linha),
+                            'verificado' => (float)$this->regexSdroSemanal->getVerificado($linha)
+                        ]),
+                        'mwh' => $this->util->formata_valores([
+                            'potencia instalada' => (float)$this->regexSdroSemanal->getPotencia($linha) * 24 * 7,
+                            'ordem de merito' => (float)$this->regexSdroSemanal->getOrdem($linha) * 24 * 7,
+                            'inflex.' => (float)$this->regexSdroSemanal->getInflex($linha) * 24 * 7,
+                            'restricao eletrica' => (float)$this->regexSdroSemanal->getRestricao($linha) * 24 * 7,
+                            'geracao fora de merito' => (float)$this->regexSdroSemanal->getForaDeMerito($linha) * 24 * 7,
+                            'energia de reposicao' => (float)$this->regexSdroSemanal->getEnergiaReposicao($linha) * 24 * 7,
+                            'garantia energetica' => (float)$this->regexSdroSemanal->getGarantia($linha) * 24 * 7,
+                            'export.' => (float)$this->regexSdroSemanal->getExport($linha) * 24 * 7,
+                            'verificado' => (float)$this->regexSdroSemanal->getVerificado($linha) * 24 * 7
+                        ])
+                    ]
+                ];
+            }
+        }
+
+        $this->util->enviaArangoDB('ons', 'despacho', Util::getDateIso(), 'semanal', $this->data);
+    }
+    public function historico_sdro_diario()
+    {
+        set_time_limit(-1);
+        $parametro = Carbon::createFromFormat('Y_m_d', '2008_08_14');
+        $diferenca = (float)$parametro->diffInDays(Carbon::createFromFormat('Ymd', '20180818'));
+
+        for ($i = 1; $i <= $diferenca; $i = $i++) {
+            $date = $parametro->format('Y_m_d');
+            $ano = $parametro->format('Y');
+            $mes = $parametro->format('m');
+            $dia = $parametro->format('d');
+
+            $parametro = $parametro->addDays($i);
+
+            $response = Curl::to('http://sdro.ons.org.br/boletim_diario/' . $date . '/despacho_termico.htm')->get();
+            $linhas = explode('<tr height=17 style=\'height:12.75pt\'>', $response);
+            unset($linhas[0]);
+
+            foreach ($linhas as $key => $linha) {
+                $this->data[$key * ($i -1) * 400] = [
+                    'usina' => $this->regexSdroDiario->getUsina($linha),
+                    'ano' => $ano,
+                    'mes' => $mes,
+                    'dia' => $dia,
+                    'valor' => [
+                        'mwmed' => $this->util->formata_valores([
+                            'codigo bdt' => (float)$this->regexSdroDiario->getCodigo($linha),
+                            'ordem de merito' => (float)$this->regexSdroDiario->getOrdem($linha),
+                            'inflex.' => (float)$this->regexSdroDiario->getInflex($linha),
+                            'restricao eletrica' => (float)$this->regexSdroDiario->getRestricao($linha),
+                            'geracao fora de merito' => (float)$this->regexSdroDiario->getForaDeMerito($linha),
+                            'energia de reposicao' => (float)$this->regexSdroDiario->getEnergiaReposicao($linha),
+                            'garantia energetica' => (float)$this->regexSdroDiario->getGarantia($linha),
+                            'export.' => (float)$this->regexSdroDiario->getExport($linha),
+                            'verificado' => (float)$this->regexSdroDiario->getVerificado($linha)
+                        ]),
+                        'mwh' => $this->util->formata_valores([
+                            'codigo bdt' => (float)$this->regexSdroDiario->getCodigo($linha) * 24,
+                            'ordem de merito' => (float)$this->regexSdroDiario->getOrdem($linha) * 24,
+                            'inflex.' => (float)$this->regexSdroDiario->getInflex($linha) * 24,
+                            'restricao eletrica' => (float)$this->regexSdroDiario->getRestricao($linha) * 24,
+                            'geracao fora de merito' => (float)$this->regexSdroDiario->getForaDeMerito($linha) * 24,
+                            'energia de reposicao' => (float)$this->regexSdroDiario->getEnergiaReposicao($linha) * 24,
+                            'garantia energetica' => (float)$this->regexSdroDiario->getGarantia($linha) * 24,
+                            'export.' => (float)$this->regexSdroDiario->getExport($linha) * 24,
+                            'verificado' => (float)$this->regexSdroDiario->getVerificado($linha) * 24
+                        ])
+                    ]
+                ];
+            }
+        }
+
+        $this->util->enviaArangoDB('ons', 'despacho', Util::getDateIso(), 'diario', $this->data);
     }
 }

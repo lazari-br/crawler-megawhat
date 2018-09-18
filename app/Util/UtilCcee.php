@@ -272,7 +272,7 @@ class UtilCcee extends Util
         }
 
         if ($inicio === '') {
-            return response()->json(['Error:' => 'A tabela '.$tabela.' não foi encontrada!']);
+            throw new \Exception('A tabela '.$tabela.' não foi encontrada!');
         }
 
         $limite = array($inicio, $fim);

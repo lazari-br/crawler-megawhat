@@ -41,87 +41,73 @@ class ImportExcelOns
     }
 
 
-    public function onsMotDispMWh($file, $sheet, $startRow, $takeRows, $date)
+    public function onsDespacho($file, $sheet, $inicio_e_fim)
     {
-        $data = [];
-        $oldUsina = '';
-        $oldCodigo = '';
-
-        $year = $date->year;
-        $this->setConfigStartRow($startRow);
         $cabecario = ['Potência Instalada', 'Ordem de Mérito', 'Inflex.', 'Restrição Elétrica', 'Geração Fora de Mérito', 'Energia de Reposição', 'Garantia Energética', 'Export.', 'Verificado'];
+        $rowData = $this->util->import(6, $sheet, $file);
 
+        $explode = explode('_', $inicio_e_fim);
+        $inicio = $explode[2].'/'.$explode[1].'/'.$explode[0];
+        $fim = $explode[5].'/'.$explode[4].'/'.$explode[3];
 
-        \Excel::selectSheetsByIndex($sheet)
-            ->load($file, function ($reader) use ($takeRows) {
-                $reader->takeRows($takeRows);
-            })
-            ->get()
-            ->each(function ($i, $k) use (&$data, &$oldUsina, &$oldCodigo, &$date, $cabecario) {
-                $rowData = $i->all();
-
-                if (
-                    $k === 0 &&
-                    (
-                        empty($rowData['usina']) ||
-                        empty($rowData['codigoons'])
-                    )
-                ) {
-                    throw new \Exception('O primeiro item não pode estar com a usina ou o código vazio');
-
-                } else {
-                    unset($rowData[0]);
-                    $usina = !empty($rowData['usina']) ? $rowData['usina'] : $oldUsina;
-                    $codigo = !empty($rowData['usina']) ? $rowData['codigoons'] : $oldCodigo;
-                    unset($rowData['usina']);
-                    unset($rowData['codigoons']);
-
-                    $arr = array_combine($cabecario, $rowData);
-                    $arrDispacho = [];
-                    array_walk($arr, function ($value, $key) use ($date, &$arrDispacho) {
-                        $total = $value;
-                        if (!is_null($value)) {
-                            $total = number_format($value, 2, ",", ".");
-
-                        }
-
-                        $arrDispacho[$key] = $total;
-                    });
-
-                    if (isset($data[$usina][$codigo])) {
-                        $data[$usina][$codigo] = $arrDispacho;
-                    } elseif (isset($data[$usina])) {
-                        $data[$usina][$codigo] = $arrDispacho;
-                    } else {
-                        $data[$usina] = [$codigo => $arrDispacho
-                        ];
-                    }
-
-                    $oldUsina = $usina;
-                    $oldCodigo = $codigo;
-                }
-            });
+        $data = [];
+        foreach ($rowData as $key => $linha) {
+            $data[$key] = [
+                'inicio' => $inicio,
+                'fim' => $fim,
+                'Usina' => $rowData[$key]['usina'],
+                'Código ONS' => $rowData[$key]['codigoons'],
+                'valor' => [
+                    'mwmed' => $this->util->formata_valores(array_combine($cabecario, array_slice($rowData[$key], 2, 9))),
+                ]
+            ];
+        }
 
         return $data;
     }
 
 
-    public function onsEnaSemanalMWm($file, $sheet)
+    public function onsEnaSemanalMWm($file, $sheet, $inicio_e_fim)
     {
+        $explode = explode('_', $inicio_e_fim);
+        $inicio = $explode[2].'/'.$explode[1].'/'.$explode[0];
+        $fim = $explode[5].'/'.$explode[4].'/'.$explode[3];
 
-        $explode = function ($n) {
-            return explode("_", $n);
-        };
-
-        $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste/Centro-Oeste', 'Total'];
+        $index = ['Norte', 'Nordeste', 'Sul', 'Sudeste/Centro-Oeste'];
 
         $rowDataNorte = $this->util->import(8, $sheet, $file, 8, 0);
         $norte = array_slice($rowDataNorte[0], 2);
-
         $rowDataSul = $this->util->import(19, $sheet, $file, 19, 0);
         $sul =  array_slice($rowDataSul[0], 2);
 
+        $rowDataMwmed = array_combine($index, array_keys(array_merge($norte, $sul)));
+
+
+        $rowPercDataNorte = array_keys($this->util->import(12, $sheet, $file, 12, 0));
+        $rowPercDataSul = array_keys($this->util->import(23, $sheet, $file, 23, 0));
+        $rowDataPercent = array_keys(array_merge($rowPercDataNorte[0], $rowPercDataSul[0]));
+
+        $dataPercent = array_combine($index, [$rowDataPercent[3], $rowDataPercent[5], $rowDataPercent[8], $rowDataPercent[10]]);
+
+dump($norte, $sul, $rowDataMwmed);
+        foreach ($rowDataMwmed as $key => $item) {
+            $data[] = [
+                'inicio' => $inicio,
+                'fim' => $fim,
+                'subsistema' => $key,
+                'valor' => $this->util->formata_valores([
+                    'mwmed' => (float)$this->regexOns->getNumEnaImport($item),
+                    '%mlt' => (float)$this->regexOns->getPercentEna($dataPercent),
+                    '%mlt_armazenavel' => (float)$this->regexOns->getPercentEna($dataPercent),
+                ])
+            ];
+        }
+
+dd($data);
+
+
         $rowData = array_merge($norte, $sul);
+dd($rowPercDataNorte);
 
         $array =[];
         foreach ($rowData as $key => $item) {
@@ -129,6 +115,7 @@ class ImportExcelOns
         }
         $array[4] = array_sum($array);
         $data = array_combine($index, $array);
+dd($data);
 
         return $data;
     }

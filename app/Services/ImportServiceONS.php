@@ -23,27 +23,26 @@ class ImportServiceONS
         $this->util = $util;
     }
     
-    public function importSdroSemanal($url_download, $date_format, $carbon)
+    public function importSdroSemanal($url_download, $date_format, $inicio_e_fim)
     {
-        $sheet = 7; // 07-Motivo de Dispacho Térmico
-        $startRow = 6;
-        $takeRows = 200;
-        $resultado[$date_format]['Motivo do dispacho termoelétrico']['MWh'] = $this->importExcelOns->onsMotDispMWh(
-            storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
-            $sheet,
-            $startRow,
-            $takeRows,
-            $carbon
-        );
+//        $sheet = 7; // 07-Motivo de Dispacho Térmico
+//        $resultado[$date_format]['Motivo do dispacho termoelétrico']['MWh'] = $this->importExcelOns->onsDespacho(
+//            storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
+//            $sheet,
+//            $inicio_e_fim
+//        );
         $sheet = 12; // 12-Grandezas Hidroenergéticas
         $resultado[$date_format]['ENA']['MWm'] = $this->importExcelOns->onsEnaSemanalMWm(
-            storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
-            $sheet
+//            storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
+            '/var/www/html/crawler-megawhat/storage/app/ons/semanal/2018-09-17/SEMANAL_01-09-2018.xlsx',
+            $sheet,
+            $inicio_e_fim
         );
         $sheet = 12; // 12-Grandezas Hidroenergéticas
         $resultado[$date_format]['ENA']['% MLT'] = $this->importExcelOns->onsEnaSemanalPerc(
             storage_path('app') . '/' . $url_download[$date_format]['url_download_semanal'][0],
-            $sheet
+            $sheet,
+            $inicio_e_fim
         );
 
         return $resultado;

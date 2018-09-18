@@ -207,18 +207,17 @@ class ImportExcelCcee
             }
         }
         foreach ($rowData as $keys => $info){
-
             if (count($rowData[$keys]) !== 16){
                 return response()->json(['Error:' => 'A importação da tabela '.$nome_tabela.' não foi realizada corretamente!']);
             }
 
             $valores = array_combine($months, array_slice($rowData[$keys], 4));
-            $array = $this->util->formata_valores_mwh($valores);
+            $dados = $this->util->formata_valores_mwh($valores);
             $data[$keys] = array_merge($array, [
                 'modalidade de energia' => $rowData[$keys]['modalidade_energia'],
                 'percentual de desconto do vendedor' => $rowData[$keys]['percentual_de_desconto_do_vendedor'],
                 'classe do produtor' => $rowData[$keys]['classe_comprador'],
-                'valor' => $array
+                'valor' => $dados
             ]);
         }
 
@@ -257,8 +256,8 @@ class ImportExcelCcee
                 $data[$mes] = null;
             }
         }
-        $resultado['R$/MWh'] = array_merge($array, $data);
-        $resultado['R$'] = array_merge($array, $this->util->formata_valores($dividendo));
+        $resultado['R$/MWh'] = array_merge($array, ['valor' => $data]);
+        $resultado['R$'] = array_merge($array, ['valor' => $this->util->formata_valores($dividendo)]);
 
         return $resultado;
     }
@@ -288,14 +287,13 @@ class ImportExcelCcee
                 $data[$mes] = null;
             }
         }
-        $resultado['R$/MWh']  = array_merge($array, $data);
-        $resultado['R$'] = array_merge($array, $this->util->formata_valores($dividendo));
+        $resultado['R$/MWh']  = array_merge($array, ['valor' => $data]);
+        $resultado['R$'] = array_merge($array, ['valor' => $this->util->formata_valores($dividendo)]);
 
         return $resultado;
     }
 
-
-    public function geracao_usinas($file, $sheet, $tabela)
+    public function geracao_usinas($file, $sheet, $tabela, $ano)
     {
         $indice = ['Código do Ativo',
                    'Sigla do Ativo',
@@ -328,11 +326,11 @@ class ImportExcelCcee
 
         $inicio = $this->utilCcee->encontra_tabela($setInicio, $tabela)[0];
         $rowData = $this->util->import($inicio + 14, $sheet, $file);
-
         unset ($rowData[0]);
         foreach ($rowData as $key => $item)
         {
             $data[$key] = array_combine($indice, array_slice($rowData[$key], 1, 20));
+            $data[$key]['Ano'] = $ano;
 
             if (!$data[$key]['Código do Ativo']) {
                 $data = $this->util->celulaMesclada($data, 'Código do Ativo', 1);
@@ -375,7 +373,7 @@ class ImportExcelCcee
         return $data;
     }
 
-    public function geracao_usinas_2015($file, $sheet, $tabela) // comentar dados retirados do CEG na function add_secundarios da class UtilCcee
+    public function geracao_usinas_2015($file, $sheet, $tabela, $ano) // comentar dados retirados do CEG na function add_secundarios da class UtilCcee
     {
         $indice = ['Código do Ativo',
                    'Sigla do Ativo',
@@ -412,6 +410,7 @@ class ImportExcelCcee
         foreach ($rowData as $key => $item)
         {
             $data[$key] = array_combine($indice, array_slice($rowData[$key], 1, 19));
+            $data[$key]['Ano'] = $ano;
 
             if (!$data[$key]['Código do Ativo']) {
                 $data = $this->util->celulaMesclada($data, 'Código do Ativo', 1);
@@ -451,7 +450,7 @@ class ImportExcelCcee
         return $data;
     }
 
-    public function historico_infoMercado_2013e2014($file, $sheet, $tabela)
+    public function historico_infoMercado_2013e2014($file, $sheet, $tabela, $ano)
     {
         $indice = ['Código do Ativo',
                    'Sigla do Ativo',
@@ -487,6 +486,7 @@ class ImportExcelCcee
         foreach ($rowData as $key => $item)
         {
             $data[$key] = array_combine($indice, array_slice($rowData[$key], 1, 18));
+            $data[$key]['Ano'] = $ano;
 
             if (!$data[$key]['Parcela de Usina']) {
                 unset($data[$key]);
@@ -508,8 +508,8 @@ class ImportExcelCcee
                 $dataGeracao[$keys] = array_slice($conteudo, 1, 12);
 
                 if (fmod($keys, 3) === 2.0) {
-                    $data[$keys - 1]['Geração no centro de gravidade (v) - MWh (Gp,j)'] = array_combine($meses,
-                        $this->util->formata_valores_mwh(array_slice($this->utilCcee->calcula_geracao_consolidada(
+                    $data[$keys - 1]['Geração no centro de gravidade (v) - MWh (Gp,j)'] = $this->util->formata_valores_mwh(
+                        array_combine($meses, array_slice($this->utilCcee->calcula_geracao_consolidada(
                             $rowDataGeracao[$keys - 2], $rowDataGeracao[$keys - 1], $rowDataGeracao[$keys]), 1)));
 
                     if ($data[$keys - 1]['Código do Ativo'] === 244.0 ||
@@ -521,7 +521,6 @@ class ImportExcelCcee
                         $data212[] = $data[$keys - 1];
                         $exclusoes[] = $keys - 1;
                     }
-
                     foreach ($exclusoes as $exclusao) {
                         if ($keys - 1 === $exclusao) {
                             unset($data[$keys - 1]);

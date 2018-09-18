@@ -57,6 +57,9 @@ Route::prefix('ons')->group(function () {
     //pmo-cdre
     Route::get('/historico-cdre-cronograma', 'HistoricoOnsController@historico_cdre_cronograma')->name('historico-cdre-cronograma');
     Route::get('/historico-cdre-memorial', 'HistoricoOnsController@historico_cdre_memorial')->name('historico-cdre-memorial');
+    //sdro
+    Route::get('/historico-sdro-semanal', 'HistoricoOnsController@historico_sdro_semanal')->name('historico-sdro-semanal');
+    Route::get('/historico-sdro-diario', 'HistoricoOnsController@historico_sdro_diario')->name('historico-sdro-diario');
 });
 
 Route::prefix('ccee')->group(function () {
@@ -89,18 +92,13 @@ Route::get('/historico-protheus-pld', 'ProtheusController@historico_pld_protheus
 
         Route::get('teste', function (StorageDirectory $storage){
 
-            $manager = new \Intervention\Image\ImageManager;
+         $date = '2018_09_01_2018_09_07';
 
-            $row = '/var/www/html/crawler-megawhat/storage/app/pequenas_centrais_hidreletricas.jpeg';
-            $path = storage_path('app/teste.jpeg');
-            $image = $manager->make($row)->save($path);
+         $explode = explode('_', $date);
+         $inicio = $explode[2].'/'.$explode[1].'/'.$explode[0];
+         $fim = $explode[5].'/'.$explode[4].'/'.$explode[3];
 
-            $scale = 2;
-            $widht = $scale * (float)$image->width();
-            $height = $scale * (float)$image->height();
-            $manager->make($path)->resize($widht, $height)->save($path);
-
-            dd($scale, \OCR::scan($path));
+         dd($inicio, $fim);
 
         });
 

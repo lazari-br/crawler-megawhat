@@ -61,6 +61,8 @@ class OnsController extends Controller
 
     public function sdroSemanal()
     {
+$this->importExcelOns->importSdroSemanal('', '', '2018_09_01_2018_09_07');
+die;
 
         $carbon = Carbon::now();
         $date = $carbon->format('Y-m-d');
@@ -74,7 +76,6 @@ class OnsController extends Controller
             ->get();
 
         if ($response->status == 200) {
-
             $url = $this->regexSdroSemanal->capturaUrlAtual($response->content);
             $response_2 = Curl::to($url_base . $url)->get();
 
@@ -82,12 +83,10 @@ class OnsController extends Controller
             $url_download_xls = $this->regexSdroSemanal->capturaUrlDownloadExcel($response_2);
             $url_download_xls_name = $this->regexSdroSemanal->capturaUrlDownloadName($url_download_xls);
 
-            $results_download = Curl::to($url_base . $data_de_ate . $url_download_xls)
-                ->withContentType('application/xlsx')
-                ->download('');
+            $results_download = $this->util->download($url_base . $data_de_ate . $url_download_xls, '.xlsx');
             $url_download[$date_format]['url_download_semanal'] = $this->storageDirectory->saveDirectory('ons/semanal/' . $date_format . '/', $url_download_xls_name, $results_download);
 
-            $resultado = $this->importExcelOns->importSdroSemanal($url_download, $date_format, $carbon);
+            $resultado = $this->importExcelOns->importSdroSemanal($url_download, $date_format, $data_de_ate);
 
             $this->util->enviaArangoDB('ons', 'ons_semanal', $date, 'semanal', $resultado);
 

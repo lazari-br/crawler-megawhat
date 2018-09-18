@@ -2,6 +2,7 @@
 
 namespace Crawler\Http\Controllers;
 
+use Crawler\Model\Pld;
 use Crawler\Services\ImportServiceCcee;
 use Crawler\Regex\RegexCceeInfoMercadoGeral;
 use Crawler\StorageDirectory\StorageDirectory;
@@ -51,7 +52,6 @@ class HistoricoCceeController extends Controller
         $this->util = $util;
     }
 
-
     public function historico_pld_mensal()
     {
         $carbon = Carbon::now();
@@ -66,10 +66,8 @@ class HistoricoCceeController extends Controller
 
         $mes_ano = $this->regexCceePldMensal->capturaMes($results[1]);
 
-        foreach ($mes_ano as $meses)
-        {
-            foreach ($meses as $mes)
-            {
+        foreach ($mes_ano as $meses) {
+            foreach ($meses as $mes) {
                 $ano_mes[] = trim($mes);
             }
         }
@@ -78,38 +76,54 @@ class HistoricoCceeController extends Controller
         $sul = $this->regexCceePldMensal->capturaS($results[1]);
         $ne = $this->regexCceePldMensal->capturaNe($results[1]);
         $norte = $this->regexCceePldMensal->capturaN($results[1]);
-
+//dd($seco);
         foreach ($ano_mes as $key=>$me)
         {
-            $ano = explode('/', $ano_mes[$key])[1];
-            $mes = $this->util->mesMesportugues(explode('/', $ano_mes[$key])[0]);
+//dd($seco[$key], $ano_mes);
+            Pld::insert([
+                'fonte' => 'ccee',
+                'frequencia' => 'mensal',
+                'sudeste_centro-oeste' => $seco[$key]['Sudeste_Centro-Oeste'],
+                'sul' => $sul[$key]['Sul'],
+                'norte' => $norte[$key]['Norte'],
+                'nordeste' => $ne[$key]['Nordeste'],
+                'ano' => $ano = explode('/', $ano_mes[$key])[1],
+                'mes' => $this->util->mesMesportugues(explode('/', $ano_mes[$key])[0]),
 
-            $data[] = array_merge(
-                [
-                    'ano' => $ano,
-                    'mes' => $mes,
-                    'subsistema' => 'Sudeste/Centro-Oeste',
-                    'valor' => $seco[$key],
-                ],[
-                    'ano' => $ano,
-                    'mes' => $mes,
-                    'subsistema' => 'Sul',
-                    'valor' => $sul[$key],
-                ],[
-                    'ano' => $ano,
-                    'mes' => $mes,
-                    'subsistema' => 'Nordeste',
-                    'valor' => $ne[$key],
-                ],[
-                    'ano' => $ano,
-                    'mes' => $mes,
-                    'subsistema' => 'Norte',
-                    'valor' => $norte[$key],
-                ]
-            );
+            ]);
+
+
+//
+//            $ano = explode('/', $ano_mes[$key])[1];
+//            $mes = $this->util->mesMesportugues(explode('/', $ano_mes[$key])[0]);
+//
+//            $data[] = array_merge(
+//                [
+//                    'ano' => $ano,
+//                    'mes' => $mes,
+//                    'subsistema' => 'Sudeste/Centro-Oeste',
+//                    $seco[$key],
+//                ],[
+//                    'ano' => $ano,
+//                    'mes' => $mes,
+//                    'subsistema' => 'Sul',
+//                    'valor' => $sul[$key],
+//                ],[
+//                    'ano' => $ano,
+//                    'mes' => $mes,
+//                    'subsistema' => 'Nordeste',
+//                    'valor' => $ne[$key],
+//                ],[
+//                    'ano' => $ano,
+//                    'mes' => $mes,
+//                    'subsistema' => 'Norte',
+//                    'valor' => $norte[$key],
+//                ]
+//            );
         }
 
-        $this->util->enviaArangoDB('ccee', 'pld', $date, 'mensal', $data);
+//echo '<pre>'; var_dump($data); die;
+
     }
 
     public function historico_pld_semanal()
@@ -214,7 +228,7 @@ class HistoricoCceeController extends Controller
             }
         }
 
-        $this->util->enviaArangoDB('ccee', 'pld', Util::getDateIso(), 'semanal', $resultado);
+
     }
 
 
@@ -223,48 +237,52 @@ class HistoricoCceeController extends Controller
         set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-//        $dados['geral']['2017'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2017.xlsx'), $date,
-//            4,
-//            2,
-//            26,
-//            6,
-//            23,
-//            9,
-//            24);
-//        $dados['geral']['2016'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
-//            4,
-//            2,
-//            25,
-//            6,
-//            22,
-//            9,
-//            23);
-//        $dados['geral']['2015'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
-//            4,
-//            2,
-//            25,
-//            6,
-//            22,
-//            9,
-//            23);
-//        $dados['geral']['2014'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2014 vs3.xlsx'), $date,
-//            3,
-//            1,
-//            23,
-//            5,
-//            21,
-//            8,
-//            22);
-        $dados['geral']['2013'] = $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2013 - vs1.xlsx'), $date,
+        $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2017.xlsx'), $date,
+            4,
+            2,
+            26,
+            6,
+            23,
+            9,
+            24,
+            '2017');
+        $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
+            4,
+            2,
+            25,
+            6,
+            22,
+            9,
+            23,
+            '2016');
+        $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2015 vs2.xlsx'), $date,
+            4,
+            2,
+            25,
+            6,
+            22,
+            9,
+            23,
+            '2015');
+        $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2014 vs3.xlsx'), $date,
             3,
             1,
             23,
             5,
             21,
             8,
-            22);
+            22,
+            '2014');
+        $this->importServiceCcee->importInfoGeral(storage_path('app/historico/ccee/InfoMercado Dados Gerais 2013 - vs1.xlsx'), $date,
+            3,
+            1,
+            23,
+            5,
+            21,
+            8,
+            22,
+            '2013');
 
-        $this->util->enviaArangoDB('ccee', 'info-mercado', $date, 'mensal', $dados);
     }
 
     public function historico_infoMercado_individual()
@@ -272,18 +290,18 @@ class HistoricoCceeController extends Controller
         set_time_limit(-1);
         $date = Carbon::now()->format('Y-m-d');
 
-        $dados['individual']['2013'] = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(
-            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2013_Rev1.xlsx'), 2, $date);
-        $dados['individual']['2014'] = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(
-            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2014_Rev1.xlsx'), 2, $date);
-        $dados['individual']['2015'] = $this->importServiceCcee->historico_infoMercado_individual_2015(
-            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2015_Rev1.xlsx'), 2, $date);
-        $dados['individual']['2016'] = $this->importServiceCcee->importInfoIndividual(
-            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2016_Rev1.xlsx'), 3, $date);
-        $dados['individual']['2017'] = $this->importServiceCcee->importInfoIndividual(
-            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2017_Rev1.xlsx'), 3, $date);
+//        $dados = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(
+//            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2013_Rev1.xlsx'), 2, $date, '2013');
+//        $dados = $this->importServiceCcee->historico_infoMercado_individual_2013e2014(
+//            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2014_Rev1.xlsx'), 2, $date, '2014');
+//        $dados = $this->importServiceCcee->historico_infoMercado_individual_2015(
+//            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2015_Rev1.xlsx'), 2, $date, '2015');
+//        $dados = $this->importServiceCcee->importInfoIndividual(
+//            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2016_Rev1.xlsx'), 3, $date, '2016');
+        $dados = $this->importServiceCcee->importInfoIndividual(
+            storage_path('app/historico/ccee/InfoMercado Dados Individuais 2017_Rev1.xlsx'), 3, $date, '2017');
 
-        $this->util->enviaArangoDB('ccee', 'info-mercado', $date, 'mensal', $dados);
+        $this->util->enviaArangoDB('ccee', 'usinas', $date, 'mensal', $dados);
     }
 
 }

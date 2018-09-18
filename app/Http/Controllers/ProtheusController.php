@@ -11,7 +11,7 @@ use Ixudra\Curl\Facades\Curl;
 use Goutte\Client;
 use Crawler\Model\ArangoDb;
 use Crawler\Regex\RegexProtheus;
-
+use Crawler\Model\Pld;
 
 
 class ProtheusController extends Controller
@@ -80,22 +80,17 @@ class ProtheusController extends Controller
     {
         set_time_limit(-1);
         $rowData = $this->util->import(1, 0, '/var/www/html/crawler-megawhat/storage/app/historico/historico_pld.xlsx');
-        $data =[];
 
         foreach ($rowData as $key => $linha) {
-            $data[$key] = [
+            Pld::insert([
                 'subsistema' => trim($rowData[$key]['submercado']),
-                'inicio' => Carbon::createFromFormat('d/m/Y', $rowData[$key]['inicio'])->format('d/m/Y'),
-                'fim' => Carbon::createFromFormat('d/m/Y', $rowData[$key]['fim'])->format('d/m/Y'),
-                'valor' => [
-                    'pesado' => $rowData[$key]['valor_pesado'],
-                    'medio' => $rowData[$key]['valor_medio'],
-                    'leve' => $rowData[$key]['valor_leve']
-                ]
-            ];
+                'inicio' => Carbon::createFromFormat('d/m/Y', $rowData[$key]['inicio'])->format('Ymd'),
+                'fim' => Carbon::createFromFormat('d/m/Y', $rowData[$key]['fim'])->format('Ymd'),
+                'pesado' => $rowData[$key]['valor_pesado'],
+                'medio' => $rowData[$key]['valor_medio'],
+                'leve' => $rowData[$key]['valor_leve']
+            ]);
         }
-
-        $this->util->enviaArangoDB('protheus', 'pld', Util::getDateIso(), 'semanal', $data);
     }
 
 }

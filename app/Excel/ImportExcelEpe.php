@@ -71,15 +71,16 @@ class ImportExcelEpe
         $rowData = $this->util->import(22, $sheet, $file);
 
         foreach ($rowData as $key => $info) {
-
             $rowData = $this->util->celulaMesclada($rowData, 1, 1);
             if (strpos(strtolower($rowData[$key][2]), 'total') !== false) {
+                $rowData[$key][1] = 'total';
                 $rowData[$key][2] = 'SIN';
             }
             $data[$key] = [
                 'tipo' => $tipo,
                 'ano' => $rowData[$key][0],
-                strtolower($rowData[$key][1]) => strtolower($rowData[$key][2]),
+                'classificacao' => strtolower($rowData[$key][1]),
+                'subsistema' => strtolower($rowData[$key][2]),
                 'valor' => [
                     'mwh' => $this->util->formata_valores(array_combine($meses, array_slice($rowData[$key], 3, 12))),
                     'mwmed' => $this->util->formata_valores_mwmed(array_combine($meses, array_slice($rowData[$key], 3, 12)))
